@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "user_console_functions.h"
 
 int main(int argc, char *argv[])
@@ -27,7 +24,14 @@ int main(int argc, char *argv[])
 
     console_identifier = atoi(argv[1]);
 
-    read_command(console_identifier);
+    while (1)
+    {
+        if (read_command(console_identifier) == false)
+        {
+            continue;
+        }
+        // write_to_named_pipe(command);
+    }
 
     return 0;
 }

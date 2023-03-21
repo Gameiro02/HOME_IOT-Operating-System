@@ -1,0 +1,8 @@
+{
+    "C_Cpp.errorSquiggles": "disabled",
+    "editor.formatOnSave": true,
+    "files.associations": {
+        "structs.h": "c",
+        "factory.h": "c"
+    }
+}
