@@ -63,13 +63,54 @@ void *sensor_reader_routine(void *arg)
 
         // Imprime a mensagem
         if (read_bytes > 0)
-            printf("Mensagem: %s \n", buffer);
+            printf("Sensor: %s \n", buffer);
         bzero(buffer, BUFFER_SIZE);
     }
     // Fecha a pipe e finaliza a thread
     close(fd);
     pthread_exit(NULL);
 }
+
+void *console_reader_routine(void *arg)
+{
+    int fd;
+    char buffer[BUFFER_SIZE];
+    int read_bytes;
+
+    // Abre a pipe SENSOR_PIPE para leitura
+    if ((fd = open(CONSOLE_PIPE, O_RDONLY)) == -1)
+    {
+        perror("Erro ao abrir a CONSOLE_PIPE");
+        pthread_exit(NULL);
+    }
+
+    while (1)
+    {
+        read_bytes = read(fd, buffer, BUFFER_SIZE);
+
+        // Le a mensagem da pipe
+        if (read_bytes == -1)
+        {
+            perror("Erro ao ler da SENSOR_PIPE");
+            pthread_exit(NULL);
+        }
+
+        // Se a mensagem for "exit" termina a thread
+        if (strcmp(buffer, "exit") == 0)
+        {
+            break;
+        }
+
+        // Imprime a mensagem
+        if (read_bytes > 0)
+            printf("User Console: %s \n", buffer);
+        bzero(buffer, BUFFER_SIZE);
+    }
+    // Fecha a pipe e finaliza a thread
+    close(fd);
+    pthread_exit(NULL);
+}
+
 int main()
 {
     Config config = read_config_file("config.txt");
@@ -99,13 +140,6 @@ int main()
         exit(1);
     }
 
-    mutex_sensor_pipe = sem_open("mutex_sensor_pipe", O_CREAT, 0777, 1);
-    if (mutex_sensor_pipe == SEM_FAILED)
-    {
-        perror("sem_open: ");
-        exit(1);
-    }
-
     inicilize_shared_memory(config);
 
     print_shared_memory();
@@ -126,8 +160,10 @@ int main()
     pthread_t console_reader, sensor_reader;
 
     pthread_create(&sensor_reader, NULL, sensor_reader_routine, NULL);
+    pthread_create(&console_reader, NULL, console_reader_routine, NULL);
 
     pthread_join(sensor_reader, NULL);
+    pthread_join(console_reader, NULL);
 
     shmctl(shmid, IPC_RMID, NULL);
 

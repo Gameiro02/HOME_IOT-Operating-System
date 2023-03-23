@@ -30,7 +30,6 @@ int main(int argc, char *argv[])
         {
             continue;
         }
-        // write_to_named_pipe(command);
     }
 
     return 0;

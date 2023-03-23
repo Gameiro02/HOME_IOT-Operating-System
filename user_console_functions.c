@@ -4,42 +4,6 @@
 #include <stdbool.h>
 #include "user_console_functions.h"
 
-void command_stats(int console_identifier)
-{
-    printf("Console %d: stats\n", console_identifier);
-}
-
-void command_reset(int console_identifier)
-{
-    printf("Console %d: reset\n", console_identifier);
-}
-
-void command_sensors(int console_identifier)
-{
-    printf("Console %d: sensors\n", console_identifier);
-}
-
-void command_add_alert(int console_identifier, char *id, char *key, char *min, char *max)
-{
-    printf("Console %d: add_alert %s %s %s %s\n", console_identifier, id, key, min, max);
-}
-
-void command_remove_alert(int console_identifier, char *id)
-{
-    printf("Console %d: remove_alert %s\n", console_identifier, id);
-}
-
-void command_list_alerts(int console_identifier)
-{
-    printf("Console %d: list_alerts\n", console_identifier);
-}
-
-void command_exit(int console_identifier)
-{
-    printf("Console %d: exit\n", console_identifier);
-    exit(0);
-}
-
 bool read_command(int console_identifier)
 {
     char command[MAX_COMMAND_LENGTH];
@@ -51,15 +15,25 @@ bool read_command(int console_identifier)
 
     // Choose the correct function to execute
     if (strcmp(command, "stats") == 0)
-        command_stats(console_identifier);
+    {
+        write_to_named_pipe(CONSOLE_PIPE, command);
+    }
     else if (strcmp(command, "reset") == 0)
-        command_reset(console_identifier);
+    {
+        write_to_named_pipe(CONSOLE_PIPE, command);
+    }
     else if (strcmp(command, "sensors") == 0)
-        command_sensors(console_identifier);
+    {
+        write_to_named_pipe(CONSOLE_PIPE, command);
+    }
     else if (strcmp(command, "list_alerts") == 0)
-        command_list_alerts(console_identifier);
+    {
+        write_to_named_pipe(CONSOLE_PIPE, command);
+    }
     else if (strcmp(command, "exit") == 0)
-        command_exit(console_identifier);
+    {
+        exit(0);
+    }
     else if (strncmp(command, "add_alert ", 10) == 0)
     {
         // Check if the id is valid
@@ -92,7 +66,7 @@ bool read_command(int console_identifier)
             printf("ERROR: Invalid max!\n");
         }
 
-        command_add_alert(console_identifier, key, key, min, max);
+        write_to_named_pipe(CONSOLE_PIPE, command);
     }
     else if (strncmp(command, "remove_alert ", 13) == 0)
     {
@@ -105,7 +79,7 @@ bool read_command(int console_identifier)
             printf("ERROR: Invalid id!\n");
         }
 
-        command_remove_alert(console_identifier, id);
+        write_to_named_pipe(CONSOLE_PIPE, command);
     }
     else
         printf("ERROR: Invalid command!\n");
