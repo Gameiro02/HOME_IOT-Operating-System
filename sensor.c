@@ -35,8 +35,11 @@ void handle_sigtstp(int sig)
 
 char *sensor_to_string(struct sensor *s)
 {
-    char *str = malloc(sizeof(char) * 100);                         // Alocar espaço suficiente para a string resultante
-    sprintf(str, "%s#%s#%d", s->id, s->key, (s->min + s->max) / 2); // Formatar a string com as informações do sensor
+    char *str = malloc(sizeof(char) * 100); // Alocar espaço suficiente para a string resultante
+
+    int random_value = rand() % (s->max - s->min + 1) + s->min; // Gerar um valor aleatório entre min e max
+
+    sprintf(str, "%s#%s#%d", s->id, s->key, random_value); // Formatar a string com as informações do sensor
     return str;
 }
 
@@ -88,7 +91,7 @@ int main(int argc, char *argv[])
     signal(SIGTSTP, handle_sigtstp);
 
     // Create the String to Send
-    char *str = sensor_to_string(&s1);
+    char *str;
 
     printf("%s\n", str);
 
@@ -101,7 +104,13 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    write(pipe, str, strlen(str) + 1);
+    while (1)
+    {
+        str = sensor_to_string(&s1);
+        sleep(s1.interval);
+        write(pipe, str, strlen(str) + 1);
+        s1.num_messages++;
+    }
 
     close(pipe);
 }

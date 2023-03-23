@@ -21,3 +21,6 @@ Inicialmete apenas são necessários 3 semáforos:
 - O semaforo da Queue
 
 Mais para a frente, para operações mais complexas vão ser necessários mais semáforos
+
+
+LISTA DE TAREFAS A CUMPRIR:
