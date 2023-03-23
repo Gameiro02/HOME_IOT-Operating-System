@@ -5,7 +5,8 @@
 int shmid;
 SharedMemory *shm;
 sem_t *mutex_shm;
-sem_t *mutex_sensor_pipe;
+sem_t *log_sem;
+sem_t *internal_queue_sem;
 
 void inicilize_shared_memory(Config config)
 {
@@ -27,12 +28,40 @@ void print_shared_memory()
     sem_post(mutex_shm);
 }
 
-void worker(int i)
+void worker(int worker_id, int read_pipe, int write_pipe)
 {
     char *message = malloc(100);
-    sprintf(message, "WORKER %d CREATED", i);
+    sprintf(message, "WORKER %d CREATED", worker_id);
+    sem_wait(log_sem);
     write_log(message);
+    sem_post(log_sem);
     free(message);
+
+    int read_bytes;
+    char buffer[BUFFER_SIZE];
+
+    while (1)
+    {
+        read_bytes = read(read_pipe, buffer, BUFFER_SIZE);
+
+        // Le a mensagem da pipe
+        if (read_bytes == -1)
+        {
+            perror("Erro ao ler da SENSOR_PIPE");
+            pthread_exit(NULL);
+        }
+
+        // Se a mensagem for "exit" termina a thread
+        if (strcmp(buffer, "exit") == 0)
+        {
+            break;
+        }
+
+        // Imprime a mensagem
+        if (read_bytes > 0)
+            printf("Worker %d: %s \n", worker_id, buffer);
+        bzero(buffer, BUFFER_SIZE);
+    }
 }
 
 void *sensor_reader_routine(void *arg)
@@ -121,7 +150,9 @@ void *console_reader_routine(void *arg)
 
 void alerts_watcher()
 {
-    printf("Alerts Watcher created\n");
+    sem_wait(log_sem);
+    write_log("THREAD ALERTS_WATCHER CREATED");
+    sem_post(log_sem);
 }
 
 void push_sensor_message_to_internal_queue(struct InternalQueueNode *queue, char *message)
@@ -204,10 +235,22 @@ void pull_internal_queue(struct InternalQueueNode *queue)
     }
 }
 
+void *dispatcher(void *arg)
+{
+    sem_wait(log_sem);
+    write_log("THREAD DISPATCHER CREATED");
+    sem_post(log_sem);
+
+    // Ir a queue interna e ver se ha mensagens
+    // Se houver, verificar se é de sensor ou de consola
+    // Se for de sensor, verificar se é uma mensagem de alerta
+    // Se for de consola, verificar se é um comando
+
+    pthread_exit(NULL);
+}
+
 int main()
 {
-    write_log("HOME_IOT SIMULATOR STARTING");
-
     Config config = read_config_file("config.txt");
 
     // Create shared memory
@@ -236,20 +279,55 @@ int main()
     }
 
     // Create the log sem
+    log_sem = sem_open("log_sem", O_CREAT, 0777, 1);
+    if (log_sem == SEM_FAILED)
+    {
+        perror("sem_open: ");
+        exit(1);
+    }
+
+    sem_wait(log_sem);
+    write_log("HOME_IOT SIMULATOR STARTING");
+    sem_post(log_sem);
 
     // Create the INTERNAL_QUEUE sem
+    internal_queue_sem = sem_open("internal_queue_sem", O_CREAT, 0777, 1);
+    if (internal_queue_sem == SEM_FAILED)
+    {
+        perror("sem_open: ");
+        exit(1);
+    }
 
     inicilize_shared_memory(config);
 
     create_named_pipes();
+
+    int pipes[config.n_workers][2];
+
+    // Create pipes
+    for (int i = 0; i < config.n_workers; i++)
+    {
+        if (pipe(pipes[i]) == -1)
+        {
+            perror("unnamed pipe: ");
+            exit(EXIT_FAILURE);
+        }
+    }
 
     // Create workers
     for (int i = 0; i < config.n_workers; i++)
     {
         if (fork() == 0)
         {
-            worker(i);
+            // write(pipes[i][1], "Hello", 6);
+            worker(i, pipes[i][0], pipes[i][1]);
             exit(0);
+        }
+        else
+        {
+            // Close the unused ends of the pipes in the parent process
+            close(pipes[i][0]);
+            close(pipes[i][1]);
         }
     }
 

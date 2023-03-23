@@ -37,7 +37,9 @@ struct InternalQueueNode
     char *sensor;
     char *key;
     char *value;
+
     char *command;
+
     int priority;
     struct InternalQueueNode *next;
 };

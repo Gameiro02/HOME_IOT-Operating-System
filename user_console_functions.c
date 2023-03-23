@@ -86,7 +86,7 @@ bool read_command(int console_identifier)
     {
         char *msg = malloc(strlen(command) + 50);
         sprintf(msg, "INVALID COMMAND => %s", command);
-        log_message(msg);
+        write_to_named_pipe(CONSOLE_PIPE, msg);
         free(msg);
     }
 }
