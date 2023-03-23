@@ -1,26 +1,15 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "SystemManager.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-
-typedef struct
-{
-    int queue_sz;
-    int n_workers;
-    int max_keys;
-    int max_sensors;
-    int max_alerts;
-} Config;
 
 Config read_config_file(char *filename)
 {
     Config config;
     FILE *fp;
     int line_number = 1;
+
+    // Print the path we are in
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));
+    printf("Current working dir: %s\n", cwd);
 
     fp = fopen(filename, "r");
 
@@ -75,11 +64,27 @@ void print_config(Config config)
     printf("QUEUE_SZ: %d\nN_WORKERS: %d\nMAX_KEYS: %d\nMAX_SENSORS: %d\nMAX_ALERTS: %d\n", config.queue_sz, config.n_workers, config.max_keys, config.max_sensors, config.max_alerts);
 }
 
-int main()
+void create_named_pipes()
 {
-    Config config = read_config_file("config.txt");
-    print_config(config);
-    return 0;
-}
+    int result;
 
-// Run: gcc -Wall -Wextra -o SystemManager SystemManager.c SystemManagerFuncs.c SystemManager.h && ./SystemManager
+    // try to remove the named pipe in case it already exists
+    unlink(CONSOLE_PIPE);
+    unlink(SENSOR_PIPE);
+
+    // Cria a named pipe CONSOL_PIPE com as permissões de leitura e escrita para todos
+    result = mkfifo(CONSOLE_PIPE, 0777);
+    if (result != 0)
+    {
+        perror("Erro ao criar a named pipe CONSOL_PIPE");
+        exit(EXIT_FAILURE);
+    }
+
+    // Cria a named pipe SENSOR_PIPE com as permissões de leitura e escrita para todos
+    result = mkfifo(SENSOR_PIPE, 0777);
+    if (result != 0)
+    {
+        perror("Erro ao criar a named pipe SENSOR_PIPE.");
+        exit(EXIT_FAILURE);
+    }
+}

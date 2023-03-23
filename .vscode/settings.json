@@ -3,6 +3,11 @@
     "editor.formatOnSave": true,
     "files.associations": {
         "structs.h": "c",
-        "factory.h": "c"
+        "factory.h": "c",
+        "systemmanager.h": "c",
+        "user_console_functions.h": "c",
+        "signal.h": "c",
+        "stdbool.h": "c",
+        "errno.h": "c"
     }
 }

@@ -7,6 +7,7 @@ all: $(PROG)
 
 clean: 
 	rm $(OBJS) *~ $(PROG)
+	rm console_pipe sensor_pipe
 
 $(PROG): $(OBJS)
 	$(CC) $(FLAGS) $(OBJS) -lm -o $@

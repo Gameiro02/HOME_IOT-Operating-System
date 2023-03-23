@@ -2,12 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include "../UserConsole/user_console_functions.h"
+#include "user_console_functions.h"
+#include "SystemManager.h"
 #include <signal.h>
 
 // Function to the process senssor
 
-#define SENSOR_PIPE "./sensor_pipe"
+#define SENSOR_PIPE "sensor_pipe"
 
 struct sensor
 {
@@ -34,8 +35,8 @@ void handle_sigtstp(int sig)
 
 char *sensor_to_string(struct sensor *s)
 {
-    char *str = malloc(sizeof(char) * 100);                            // Alocar espaço suficiente para a string resultante
-    sprintf(str, "ID %s#%s#%d", s->id, s->key, (s->min + s->max) / 2); // Formatar a string com as informações do sensor
+    char *str = malloc(sizeof(char) * 100);                         // Alocar espaço suficiente para a string resultante
+    sprintf(str, "%s#%s#%d", s->id, s->key, (s->min + s->max) / 2); // Formatar a string com as informações do sensor
     return str;
 }
 
@@ -92,17 +93,17 @@ int main(int argc, char *argv[])
     printf("%s\n", str);
 
     // Send to the pipe
-    // FILE *pipe = fopen(SENSOR_PIPE, "w");
+    int pipe = open(SENSOR_PIPE, O_WRONLY);
 
-    // if (pipe == NULL)
-    // {
-    //     printf("Error opening pipe\n");
-    //     return 1;
-    // }
+    if (pipe == -1)
+    {
+        printf("Error opening pipe\n");
+        return 1;
+    }
 
-    // fprintf(pipe, "%s", str);
+    write(pipe, str, strlen(str) + 1);
 
-    // fclose(pipe);
+    close(pipe);
 }
 
-// Run: gcc sensor.c -o sensor; ./sensor SENS1 3 HOUSETEMP 10 100
+// run: gcc sensor.c -o sensor  && ./sensor SENS1 3 HOUSETEMP 10 100
