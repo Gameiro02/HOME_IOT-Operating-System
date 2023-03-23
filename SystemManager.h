@@ -31,6 +31,17 @@ typedef struct
     int max_sensors;
     int max_alerts;
 } Config;
+
+struct InternalQueueNode
+{
+    char *sensor;
+    char *key;
+    char *value;
+    char *command;
+    int priority;
+    struct InternalQueueNode *next;
+};
+
 typedef struct
 {
     Config config_file;
@@ -51,6 +62,8 @@ void worker();
 void *consol_reader_routine(void *arg);
 
 void *sensor_reader_routine(void *arg);
+
+void alerts_watcher();
 
 // Variaveis globais
 extern int shmid;

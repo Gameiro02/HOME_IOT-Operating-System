@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include "user_console_functions.h"
+#include "log.h"
 
 bool read_command(int console_identifier)
 {
@@ -82,7 +83,12 @@ bool read_command(int console_identifier)
         write_to_named_pipe(CONSOLE_PIPE, command);
     }
     else
-        printf("ERROR: Invalid command!\n");
+    {
+        char *msg = malloc(strlen(command) + 50);
+        sprintf(msg, "INVALID COMMAND => %s", command);
+        log_message(msg);
+        free(msg);
+    }
 }
 
 void write_to_named_pipe(const char *pipe_name, const char *message)

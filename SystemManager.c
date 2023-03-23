@@ -1,4 +1,5 @@
 #include "SystemManager.h"
+#include "log.h"
 
 // Variaveis globais
 int shmid;
@@ -26,13 +27,18 @@ void print_shared_memory()
     sem_post(mutex_shm);
 }
 
-void worker()
+void worker(int i)
 {
-    printf("Worker\n");
+    char *message = malloc(100);
+    sprintf(message, "WORKER %d CREATED", i);
+    write_log(message);
+    free(message);
 }
 
 void *sensor_reader_routine(void *arg)
 {
+    write_log("THREAD SENSOR_READER CREATED");
+
     int fd;
     char buffer[BUFFER_SIZE];
     int read_bytes;
@@ -73,6 +79,8 @@ void *sensor_reader_routine(void *arg)
 
 void *console_reader_routine(void *arg)
 {
+    write_log("THREAD CONSOLE_READER CREATED");
+
     int fd;
     char buffer[BUFFER_SIZE];
     int read_bytes;
@@ -111,8 +119,95 @@ void *console_reader_routine(void *arg)
     pthread_exit(NULL);
 }
 
+void alerts_watcher()
+{
+    printf("Alerts Watcher created\n");
+}
+
+void push_sensor_message_to_internal_queue(struct InternalQueueNode *queue, char *message)
+{
+    // Parse the message: Senseor, Key, Value
+    char *sensor = strtok(message, ",");
+    char *key = strtok(NULL, ",");
+    char *value = strtok(NULL, ",");
+
+    // Create the node
+    struct InternalQueueNode *node = (struct InternalQueueNode *)malloc(sizeof(struct InternalQueueNode));
+
+    strcpy(node->sensor, sensor);
+    strcpy(node->key, key);
+    strcpy(node->value, value);
+
+    node->priority = 0;
+
+    node->next = NULL;
+
+    // Push the node to the queue
+    if (queue->next == NULL)
+    {
+        queue->next = node;
+    }
+    else
+    {
+        struct InternalQueueNode *aux = queue->next;
+
+        while (aux->next != NULL)
+        {
+            aux = aux->next;
+        }
+
+        aux->next = node;
+    }
+}
+
+void push_console_message_to_internal_queue(struct InternalQueueNode *queue, char *message)
+{
+    // to the console message we only need to copy the message to the command field
+    struct InternalQueueNode *node = (struct InternalQueueNode *)malloc(sizeof(struct InternalQueueNode));
+
+    strcpy(node->command, message);
+
+    node->priority = 1;
+
+    node->key = NULL;
+    node->sensor = NULL;
+    node->value = NULL;
+
+    node->next = NULL;
+
+    // Push the node to the queue
+    if (queue->next == NULL)
+    {
+        queue->next = node;
+    }
+    else
+    {
+        struct InternalQueueNode *aux = queue->next;
+
+        while (aux->next != NULL)
+        {
+            aux = aux->next;
+        }
+
+        aux->next = node;
+    }
+}
+
+void pull_internal_queue(struct InternalQueueNode *queue)
+{
+    struct InternalQueueNode *aux = queue->next;
+
+    if (aux != NULL)
+    {
+        queue->next = aux->next;
+        free(aux);
+    }
+}
+
 int main()
 {
+    write_log("HOME_IOT SIMULATOR STARTING");
+
     Config config = read_config_file("config.txt");
 
     // Create shared memory
@@ -140,9 +235,11 @@ int main()
         exit(1);
     }
 
-    inicilize_shared_memory(config);
+    // Create the log sem
 
-    print_shared_memory();
+    // Create the INTERNAL_QUEUE sem
+
+    inicilize_shared_memory(config);
 
     create_named_pipes();
 
@@ -151,19 +248,32 @@ int main()
     {
         if (fork() == 0)
         {
-            worker();
+            worker(i);
             exit(0);
         }
     }
 
+    // Create the Alerts Watcher process
+    if (fork() == 0)
+    {
+        alerts_watcher();
+        exit(0);
+    }
+
     // Create the 2 threads: console_reader and sensor_reader
-    pthread_t console_reader, sensor_reader;
+    pthread_t console_reader, sensor_reader, dispatcher;
 
     pthread_create(&sensor_reader, NULL, sensor_reader_routine, NULL);
     pthread_create(&console_reader, NULL, console_reader_routine, NULL);
 
     pthread_join(sensor_reader, NULL);
     pthread_join(console_reader, NULL);
+
+    // Wait for all processes to finish
+    for (int i = 0; i < config.n_workers + 1; i++) // +1 because of the alerts watcher
+    {
+        wait(NULL);
+    }
 
     shmctl(shmid, IPC_RMID, NULL);
 
