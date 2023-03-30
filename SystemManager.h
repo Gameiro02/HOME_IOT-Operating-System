@@ -23,6 +23,9 @@
 #define CONSOLE_PIPE "console_pipe"
 #define SENSOR_PIPE "sensor_pipe"
 
+#define WRITE 1
+#define READ 0
+
 typedef struct
 {
     int queue_sz;
@@ -36,7 +39,7 @@ struct InternalQueueNode
 {
     char *sensor;
     char *key;
-    char *value;
+    int value;
 
     char *command;
 
@@ -66,6 +69,10 @@ void *consol_reader_routine(void *arg);
 void *sensor_reader_routine(void *arg);
 
 void alerts_watcher();
+
+bool push_sensor_message_to_internal_queue(struct InternalQueueNode **head, char *sensor, char *key, int value, char *command, int priority);
+
+void print_internal_queue(struct InternalQueueNode *head);
 
 // Variaveis globais
 extern int shmid;

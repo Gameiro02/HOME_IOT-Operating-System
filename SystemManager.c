@@ -8,6 +8,8 @@ sem_t *mutex_shm;
 sem_t *log_sem;
 sem_t *internal_queue_sem;
 
+struct InternalQueueNode *internal_queue;
+
 void inicilize_shared_memory(Config config)
 {
     sem_wait(mutex_shm);
@@ -98,7 +100,13 @@ void *sensor_reader_routine(void *arg)
 
         // Imprime a mensagem
         if (read_bytes > 0)
-            printf("Sensor: %s \n", buffer);
+        {
+            printf("Sensor Reader Routine: %s \n", buffer);
+            sem_wait(internal_queue_sem);
+            push_sensor_message_to_internal_queue(&internal_queue, buffer, NULL, 0, NULL, 0);
+            print_internal_queue(internal_queue);
+            sem_post(internal_queue_sem);
+        }
         bzero(buffer, BUFFER_SIZE);
     }
     // Fecha a pipe e finaliza a thread
@@ -155,86 +163,6 @@ void alerts_watcher()
     sem_post(log_sem);
 }
 
-void push_sensor_message_to_internal_queue(struct InternalQueueNode *queue, char *message)
-{
-    // Parse the message: Senseor, Key, Value
-    char *sensor = strtok(message, ",");
-    char *key = strtok(NULL, ",");
-    char *value = strtok(NULL, ",");
-
-    // Create the node
-    struct InternalQueueNode *node = (struct InternalQueueNode *)malloc(sizeof(struct InternalQueueNode));
-
-    strcpy(node->sensor, sensor);
-    strcpy(node->key, key);
-    strcpy(node->value, value);
-
-    node->priority = 0;
-
-    node->next = NULL;
-
-    // Push the node to the queue
-    if (queue->next == NULL)
-    {
-        queue->next = node;
-    }
-    else
-    {
-        struct InternalQueueNode *aux = queue->next;
-
-        while (aux->next != NULL)
-        {
-            aux = aux->next;
-        }
-
-        aux->next = node;
-    }
-}
-
-void push_console_message_to_internal_queue(struct InternalQueueNode *queue, char *message)
-{
-    // to the console message we only need to copy the message to the command field
-    struct InternalQueueNode *node = (struct InternalQueueNode *)malloc(sizeof(struct InternalQueueNode));
-
-    strcpy(node->command, message);
-
-    node->priority = 1;
-
-    node->key = NULL;
-    node->sensor = NULL;
-    node->value = NULL;
-
-    node->next = NULL;
-
-    // Push the node to the queue
-    if (queue->next == NULL)
-    {
-        queue->next = node;
-    }
-    else
-    {
-        struct InternalQueueNode *aux = queue->next;
-
-        while (aux->next != NULL)
-        {
-            aux = aux->next;
-        }
-
-        aux->next = node;
-    }
-}
-
-void pull_internal_queue(struct InternalQueueNode *queue)
-{
-    struct InternalQueueNode *aux = queue->next;
-
-    if (aux != NULL)
-    {
-        queue->next = aux->next;
-        free(aux);
-    }
-}
-
 void *dispatcher(void *arg)
 {
     sem_wait(log_sem);
@@ -247,6 +175,98 @@ void *dispatcher(void *arg)
     // Se for de consola, verificar se é um comando
 
     pthread_exit(NULL);
+}
+
+bool push_sensor_message_to_internal_queue(struct InternalQueueNode **head, char *sensor, char *key, int value, char *command, int priority)
+{
+    // Aloca memória para o novo nó
+    struct InternalQueueNode *newNode = (struct InternalQueueNode *)malloc(sizeof(struct InternalQueueNode));
+
+    if (newNode == NULL)
+    {
+        // Se não houver memória disponível, retorna false
+        return false;
+    }
+
+    // Atribui os valores aos campos do novo nó
+    newNode->sensor = sensor;
+    newNode->key = key;
+    newNode->value = value;
+    newNode->command = command;
+    newNode->priority = priority;
+    newNode->next = NULL;
+
+    // Se a lista estiver vazia, o novo nó será o primeiro
+    if (*head == NULL)
+    {
+        *head = newNode;
+    }
+    else
+    {
+        // Procura a posição correta para inserir o novo nó
+        struct InternalQueueNode *current = *head;
+        struct InternalQueueNode *previous = NULL;
+
+        while (current != NULL && current->priority <= priority)
+        {
+            previous = current;
+            current = current->next;
+        }
+
+        // Insere o novo nó na posição correta
+        if (previous == NULL)
+        {
+            newNode->next = *head;
+            *head = newNode;
+        }
+        else
+        {
+            previous->next = newNode;
+            newNode->next = current;
+        }
+    }
+
+    return true;
+}
+
+void print_internal_queue(struct InternalQueueNode *head)
+{
+    printf("========== PRINT QUEUE ========== \n");
+    while (head != NULL)
+    {
+        printf("Sensor: ");
+        if (head->sensor != NULL)
+        {
+            printf("%s\n", head->sensor);
+        }
+        else
+        {
+            printf("NULL\n");
+        }
+        printf("Key: ");
+        if (head->key != NULL)
+        {
+            printf("%s\n", head->key);
+        }
+        else
+        {
+            printf("NULL\n");
+        }
+        printf("Value: %d\n", head->value);
+        printf("Command: ");
+        if (head->command != NULL)
+        {
+            printf("%s\n", head->command);
+        }
+        else
+        {
+            printf("NULL\n");
+        }
+        printf("Priority: %d\n", head->priority);
+        printf("------------------------\n");
+        head = head->next;
+    }
+    printf("================================\n");
 }
 
 int main()
@@ -319,7 +339,7 @@ int main()
     {
         if (fork() == 0)
         {
-            // write(pipes[i][1], "Hello", 6);
+            write(pipes[i][1], "Hello", 6);
             worker(i, pipes[i][0], pipes[i][1]);
             exit(0);
         }
@@ -355,7 +375,12 @@ int main()
 
     shmctl(shmid, IPC_RMID, NULL);
 
+    // unlink all the semaphores
+    sem_unlink("mutex_shm");
+    sem_unlink("log_sem");
+    sem_unlink("internal_queue_sem");
+
     return 0;
 }
 
-// Run: gcc -o SystemManager SystemManager.c SystemManagerFuncs.c SystemManager.h && ./SystemManager
+// Run: gcc -o SystemManager SystemManager.c SystemManagerFuncs.c SystemManager.h log.c log.h && ./SystemManager
