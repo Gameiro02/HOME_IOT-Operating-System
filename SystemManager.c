@@ -103,7 +103,7 @@ void *sensor_reader_routine(void *arg)
         {
             printf("Sensor Reader Routine: %s \n", buffer);
             //     sem_wait(internal_queue_sem);
-            //     push_sensor_message_to_internal_queue(&internal_queue, buffer, NULL, 0, NULL, 0);
+            push_sensor_message_to_internal_queue(&internal_queue, buffer, NULL, 0, NULL, 0);
             //     print_internal_queue(internal_queue);
             //     sem_post(internal_queue_sem);
         }

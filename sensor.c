@@ -93,8 +93,6 @@ int main(int argc, char *argv[])
     // Create the String to Send
     char *str;
 
-    printf("%s\n", str);
-
     // Send to the pipe
     int pipe = open(SENSOR_PIPE, O_WRONLY);
 
