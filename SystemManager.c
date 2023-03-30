@@ -102,10 +102,10 @@ void *sensor_reader_routine(void *arg)
         if (read_bytes > 0)
         {
             printf("Sensor Reader Routine: %s \n", buffer);
-            sem_wait(internal_queue_sem);
-            push_sensor_message_to_internal_queue(&internal_queue, buffer, NULL, 0, NULL, 0);
-            print_internal_queue(internal_queue);
-            sem_post(internal_queue_sem);
+            //     sem_wait(internal_queue_sem);
+            //     push_sensor_message_to_internal_queue(&internal_queue, buffer, NULL, 0, NULL, 0);
+            //     print_internal_queue(internal_queue);
+            //     sem_post(internal_queue_sem);
         }
         bzero(buffer, BUFFER_SIZE);
     }
@@ -148,7 +148,13 @@ void *console_reader_routine(void *arg)
 
         // Imprime a mensagem
         if (read_bytes > 0)
+        {
             printf("User Console: %s \n", buffer);
+            sem_wait(internal_queue_sem);
+            push_sensor_message_to_internal_queue(&internal_queue, NULL, NULL, 0, buffer, 0);
+            // print_internal_queue(internal_queue);
+            sem_post(internal_queue_sem);
+        }
         bzero(buffer, BUFFER_SIZE);
     }
     // Fecha a pipe e finaliza a thread
