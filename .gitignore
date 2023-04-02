@@ -55,3 +55,6 @@ dkms.conf
 # Pipes
 console_pipe
 sensor_pipe
+
+#Log files
+log.txt

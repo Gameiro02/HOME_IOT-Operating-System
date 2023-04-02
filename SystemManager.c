@@ -68,7 +68,31 @@ void worker(int worker_id, int read_pipe, int write_pipe)
 
         // Imprime a mensagem
         if (read_bytes > 0)
+        {
             printf("Worker %d: %s \n", worker_id, buffer);
+
+            sem_wait(mutex_shm);
+            shm->workers_status[worker_id] = 1;
+
+            // DO THE WORK
+
+            // Parse the message: sensor_id#key#value
+            char *sensor_id = strtok(buffer, "#");
+            char *key = strtok(NULL, "#");
+            int value = atoi(strtok(NULL, "#"));
+
+            // Search in the shared memory for the key
+            if (!update_key_list(&shm->key_list, key, value))
+            {
+                push_key_list(&shm->key_list, key, value);
+            }
+
+            sleep(5);
+
+            printf("Worker %d: %s \n", worker_id, "DONE");
+            shm->workers_status[worker_id] = 0;
+            sem_post(mutex_shm);
+        }
         bzero(buffer, BUFFER_SIZE);
     }
 }
@@ -209,7 +233,7 @@ void *dispatcher_routine(void *arg)
                 pthread_exit(NULL);
             }
 
-            sleep(10);
+            sleep(2);
         }
     }
 
@@ -362,9 +386,108 @@ void print_internal_queue(struct InternalQueueNode *head)
     printf("================================\n");
 }
 
+void push_key_list(struct key_list_node **head, char *key, int value)
+{
+    struct key_list_node *newNode = (struct key_list_node *)malloc(sizeof(struct key_list_node));
+
+    if (newNode == NULL)
+        return;
+
+    if (key != NULL)
+        strcpy(newNode->key, key);
+
+    newNode->last_value = value;
+
+    newNode->avg_value = (double)value;
+    newNode->num_updates = 1;
+    newNode->max_value = value;
+    newNode->min_value = value;
+    newNode->next = NULL;
+
+    if (*head == NULL)
+    {
+        *head = newNode;
+    }
+    else
+    {
+        struct key_list_node *current = *head;
+        struct key_list_node *previous = NULL;
+
+        while (current != NULL && strcmp(current->key, key) < 0)
+        {
+            previous = current;
+            current = current->next;
+        }
+
+        if (previous == NULL)
+        {
+            newNode->next = *head;
+            *head = newNode;
+        }
+        else
+        {
+            previous->next = newNode;
+            newNode->next = current;
+        }
+    }
+}
+
+bool update_key_list(struct key_list_node **head, char *key, int value)
+{
+    struct key_list_node *current = *head;
+    while (current != NULL && strcmp(current->key, key) != 0)
+    {
+        current = current->next;
+    }
+    if (current != NULL)
+    {
+        current->last_value = value;
+        current->avg_value = (current->avg_value * current->num_updates + value) / (current->num_updates + 1);
+        current->num_updates++;
+        if (value > current->max_value)
+            current->max_value = value;
+        if (value < current->min_value)
+            current->min_value = value;
+
+        // Key found
+        return true;
+    }
+    else
+    {
+        // Key not found
+        return false;
+    }
+}
+
+void handle_sigint(int sig)
+{
+    printf("Received SIGINT signal. Exiting...\n");
+
+    shmctl(shmid, IPC_RMID, NULL);
+
+    // unlink all the semaphores
+    sem_unlink("mutex_shm");
+    sem_unlink("log_sem");
+    sem_unlink("internal_queue_sem");
+    sem_unlink("worker_status_sem");
+
+    // destroy all the semaphores
+    sem_destroy(mutex_shm);
+    sem_destroy(log_sem);
+    sem_destroy(internal_queue_sem);
+    sem_destroy(worker_status_sem);
+
+    // Close the named pipes
+    unlink(CONSOLE_PIPE);
+    unlink(SENSOR_PIPE);
+
+    exit(0);
+}
+
 int main()
 {
     Config config = read_config_file("config.txt");
+    signal(SIGINT, handle_sigint);
 
     // Create shared memory
     int shmid = shmget(IPC_PRIVATE, sizeof(SharedMemory), IPC_CREAT | 0777);
@@ -474,25 +597,6 @@ int main()
     for (int i = 0; i < config.n_workers + 1; i++) // +1 because of the alerts watcher
     {
         wait(NULL);
-    }
-
-    shmctl(shmid, IPC_RMID, NULL);
-
-    // unlink all the semaphores
-    sem_unlink("mutex_shm");
-    sem_unlink("log_sem");
-    sem_unlink("internal_queue_sem");
-
-    // destroy all the semaphores
-    sem_destroy(mutex_shm);
-    sem_destroy(log_sem);
-    sem_destroy(internal_queue_sem);
-
-    // Close the unnamed pipes
-    for (int i = 0; i < config.n_workers; i++)
-    {
-        close(pipes[i][0]);
-        close(pipes[i][1]);
     }
 
     return 0;

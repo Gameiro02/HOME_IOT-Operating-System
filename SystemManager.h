@@ -35,6 +35,18 @@ typedef struct
     int max_alerts;
 } Config;
 
+struct key_list_node
+{
+    char key[BUFFER_SIZE];
+    int last_value;
+    int min_value;
+    int max_value;
+    double avg_value;
+    int num_updates;
+
+    struct key_list_node *next;
+};
+
 struct InternalQueueNode
 {
     char sensor_id[BUFFER_SIZE];
@@ -51,6 +63,7 @@ typedef struct
 {
     Config config_file;
     int *workers_status; // 0 - not working, 1 - working
+    struct key_list_node *key_list;
 
 } SharedMemory;
 
@@ -81,6 +94,10 @@ struct InternalQueueNode *pop(struct InternalQueueNode **head);
 struct InternalQueueNode parse_params(const char *str);
 
 char *create_msg_to_worker(struct InternalQueueNode *node);
+
+void push_key_list(struct key_list_node **head, char *key, int value);
+
+bool update_key_list(struct key_list_node **head, char *key, int value);
 
 // Variaveis globais
 extern int shmid;
