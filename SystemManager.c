@@ -73,23 +73,26 @@ void worker(int worker_id, int read_pipe, int write_pipe)
 
             sem_wait(mutex_shm);
             shm->workers_status[worker_id] = 1;
+            sem_post(mutex_shm);
 
             // DO THE WORK
 
-            // Parse the message: sensor_id#key#value
-            char *sensor_id = strtok(buffer, "#");
-            char *key = strtok(NULL, "#");
-            int value = atoi(strtok(NULL, "#"));
+            // // Parse the message: sensor_id#key#value witout segmentation fault
+            // struct InternalQueueNode aux = parse_params(buffer);
 
-            // Search in the shared memory for the key
-            if (!update_key_list(&shm->key_list, key, value))
-            {
-                push_key_list(&shm->key_list, key, value);
-            }
+            // // printf("Sensor ID: %s\nKey: %s\nValue: %d\n", aux.sensor_id, aux.key, aux.value);
+
+            // // Search in the shared memory for the key
+            // if (!update_key_list(&shm->key_list, aux.key, aux.value))
+            // {
+            //     push_key_list(&shm->key_list, aux.key, aux.value);
+            // }
 
             sleep(5);
 
             printf("Worker %d: %s \n", worker_id, "DONE");
+
+            sem_wait(mutex_shm);
             shm->workers_status[worker_id] = 0;
             sem_post(mutex_shm);
         }
@@ -208,6 +211,10 @@ void *dispatcher_routine(void *arg)
 
     int(*pipes)[2] = (int(*)[2])arg;
 
+    sem_wait(mutex_shm);
+    int num_workers = shm->config_file.n_workers;
+    sem_post(mutex_shm);
+
     while (true)
     {
         if (internal_queue != NULL)
@@ -217,14 +224,14 @@ void *dispatcher_routine(void *arg)
 
             char *msg = create_msg_to_worker(node);
 
-            sem_wait(mutex_shm);
-            int random_worker = rand() % shm->config_file.n_workers;
+            int random_worker = rand() % num_workers;
 
             while (shm->workers_status[random_worker] != 0)
             {
-                random_worker = rand() % shm->config_file.n_workers;
+                random_worker = rand() % num_workers;
             }
-            sem_post(mutex_shm);
+
+            // printf("Worker %d\n", random_worker);
 
             // Send the message to the worker
             if (write(pipes[random_worker][WRITE], msg, strlen(msg)) == -1)
@@ -450,13 +457,40 @@ bool update_key_list(struct key_list_node **head, char *key, int value)
             current->min_value = value;
 
         // Key found
+        print_key_list(*head);
         return true;
     }
     else
     {
         // Key not found
+        print_key_list(*head);
         return false;
     }
+}
+
+void print_key_list(struct key_list_node *head)
+{
+    printf("========== PRINT KEY LIST ========== \n");
+    while (head != NULL)
+    {
+        printf("Key: ");
+        if (head->key != NULL)
+        {
+            printf("%s\n", head->key);
+        }
+        else
+        {
+            printf("NULL\n");
+        }
+        printf("Last Value: %d\n", head->last_value);
+        printf("Avg Value: %f\n", head->avg_value);
+        printf("Num Updates: %d\n", head->num_updates);
+        printf("Max Value: %d\n", head->max_value);
+        printf("Min Value: %d\n", head->min_value);
+        printf("------------------------\n");
+        head = head->next;
+    }
+    printf("================================\n");
 }
 
 void handle_sigint(int sig)

@@ -99,6 +99,8 @@ void push_key_list(struct key_list_node **head, char *key, int value);
 
 bool update_key_list(struct key_list_node **head, char *key, int value);
 
+void print_key_list(struct key_list_node *head);
+
 // Variaveis globais
 extern int shmid;
 extern SharedMemory *shm;
