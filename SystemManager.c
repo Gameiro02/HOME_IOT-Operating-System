@@ -102,10 +102,10 @@ void *sensor_reader_routine(void *arg)
         if (read_bytes > 0)
         {
             printf("Sensor Reader Routine: %s \n", buffer);
-            //     sem_wait(internal_queue_sem);
-            push_sensor_message_to_internal_queue(&internal_queue, buffer, NULL, 0, NULL, 0);
-            //     print_internal_queue(internal_queue);
-            //     sem_post(internal_queue_sem);
+            // sem_wait(internal_queue_sem);
+            struct InternalQueueNode aux = parse_params(buffer);
+            push_sensor_message_to_internal_queue(&internal_queue, aux.sensor_id, aux.key, aux.value, aux.command, aux.priority);
+            // sem_post(internal_queue_sem);
         }
         bzero(buffer, BUFFER_SIZE);
     }
@@ -169,18 +169,69 @@ void alerts_watcher()
     sem_post(log_sem);
 }
 
-void *dispatcher(void *arg)
+void *dispatcher_routine(void *arg)
 {
     sem_wait(log_sem);
     write_log("THREAD DISPATCHER CREATED");
     sem_post(log_sem);
 
-    // Ir a queue interna e ver se ha mensagens
-    // Se houver, verificar se é de sensor ou de consola
-    // Se for de sensor, verificar se é uma mensagem de alerta
-    // Se for de consola, verificar se é um comando
+    int(*pipes)[2] = (int(*)[2])arg;
+
+    while (true)
+    {
+        if (internal_queue != NULL)
+        {
+            struct InternalQueueNode *node = pop(&internal_queue);
+            // print_internal_queue(internal_queue);
+
+            // Send the message to the worker 1 (use the ,macros defined in the header file: READ, WRITE)
+
+            char *msg = create_msg_to_worker(node);
+            printf("Sending message to worker 1: %s\n", msg);
+
+            // try to send the message to the worker 1
+            if (write(pipes[0][WRITE], msg, strlen(msg)) == -1)
+            {
+                perror("Error writing to pipe");
+            }
+
+            sleep(10);
+        }
+    }
 
     pthread_exit(NULL);
+}
+
+char *create_msg_to_worker(struct InternalQueueNode *node)
+{
+    char *msg = malloc(100);
+    sprintf(msg, "%s#%s#%d", node->sensor_id, node->key, node->value);
+    return msg;
+}
+struct InternalQueueNode parse_params(const char *str)
+{
+    struct InternalQueueNode params;
+
+    char copy[256];
+    strncpy(copy, str, sizeof(copy)); // cria uma cópia da string original para poder modificar
+
+    char *token = strtok(copy, "#");
+    if (token != NULL)
+    {
+        strncpy(params.sensor_id, token, sizeof(params.sensor_id));
+        token = strtok(NULL, "#");
+        if (token != NULL)
+        {
+            strncpy(params.key, token, sizeof(params.key));
+            token = strtok(NULL, "#");
+            if (token != NULL)
+            {
+                params.value = atoi(token);
+            }
+        }
+    }
+
+    return params;
 }
 
 bool push_sensor_message_to_internal_queue(struct InternalQueueNode **head, char *sensor, char *key, int value, char *command, int priority)
@@ -195,11 +246,13 @@ bool push_sensor_message_to_internal_queue(struct InternalQueueNode **head, char
     }
 
     // Atribui os valores aos campos do novo nó
-    newNode->sensor = sensor;
-    newNode->key = key;
+    if (sensor != NULL)
+        strcpy(newNode->sensor_id, sensor);
+    if (key != NULL)
+        strcpy(newNode->key, key);
     newNode->value = value;
-    newNode->command = command;
-    newNode->priority = priority;
+    if (command != NULL)
+        strcpy(newNode->command, command);
     newNode->next = NULL;
 
     // Se a lista estiver vazia, o novo nó será o primeiro
@@ -234,6 +287,26 @@ bool push_sensor_message_to_internal_queue(struct InternalQueueNode **head, char
 
     return true;
 }
+struct InternalQueueNode *pop(struct InternalQueueNode **head)
+{
+    if (*head == NULL)
+    {
+        // Se a lista estiver vazia, retorna NULL
+        return NULL;
+    }
+    else
+    {
+        // Armazena o primeiro nó da lista em uma variável temporária
+        struct InternalQueueNode *temp = *head;
+        // printa o sensor
+
+        // Ajusta o ponteiro do primeiro nó para o próximo nó da lista
+        *head = (*head)->next;
+
+        // Retorna o nó removido
+        return temp;
+    }
+}
 
 void print_internal_queue(struct InternalQueueNode *head)
 {
@@ -241,9 +314,9 @@ void print_internal_queue(struct InternalQueueNode *head)
     while (head != NULL)
     {
         printf("Sensor: ");
-        if (head->sensor != NULL)
+        if (head->sensor_id != NULL)
         {
-            printf("%s\n", head->sensor);
+            printf("%s\n", head->sensor_id);
         }
         else
         {
@@ -330,6 +403,12 @@ int main()
 
     int pipes[config.n_workers][2];
 
+    if (pipe(pipes[0]) == -1)
+    {
+        perror("unnamed pipe: ");
+        exit(EXIT_FAILURE);
+    }
+
     // Create pipes
     for (int i = 0; i < config.n_workers; i++)
     {
@@ -345,15 +424,9 @@ int main()
     {
         if (fork() == 0)
         {
-            write(pipes[i][1], "Hello", 6);
-            worker(i, pipes[i][0], pipes[i][1]);
+            write(pipes[i][WRITE], "Hello", 6);
+            worker(i, pipes[i][READ], pipes[i][WRITE]);
             exit(0);
-        }
-        else
-        {
-            // Close the unused ends of the pipes in the parent process
-            close(pipes[i][0]);
-            close(pipes[i][1]);
         }
     }
 
@@ -369,9 +442,11 @@ int main()
 
     pthread_create(&sensor_reader, NULL, sensor_reader_routine, NULL);
     pthread_create(&console_reader, NULL, console_reader_routine, NULL);
+    pthread_create(&dispatcher, NULL, dispatcher_routine, pipes);
 
     pthread_join(sensor_reader, NULL);
     pthread_join(console_reader, NULL);
+    pthread_join(dispatcher, NULL);
 
     // Wait for all processes to finish
     for (int i = 0; i < config.n_workers + 1; i++) // +1 because of the alerts watcher
@@ -385,6 +460,18 @@ int main()
     sem_unlink("mutex_shm");
     sem_unlink("log_sem");
     sem_unlink("internal_queue_sem");
+
+    // destroy all the semaphores
+    sem_destroy(mutex_shm);
+    sem_destroy(log_sem);
+    sem_destroy(internal_queue_sem);
+
+    // Close the unnamed pipes
+    for (int i = 0; i < config.n_workers; i++)
+    {
+        close(pipes[i][0]);
+        close(pipes[i][1]);
+    }
 
     return 0;
 }

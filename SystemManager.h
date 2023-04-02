@@ -37,11 +37,11 @@ typedef struct
 
 struct InternalQueueNode
 {
-    char *sensor;
-    char *key;
+    char sensor_id[BUFFER_SIZE];
+    char key[BUFFER_SIZE];
     int value;
 
-    char *command;
+    char command[BUFFER_SIZE];
 
     int priority;
     struct InternalQueueNode *next;
@@ -73,6 +73,12 @@ void alerts_watcher();
 bool push_sensor_message_to_internal_queue(struct InternalQueueNode **head, char *sensor, char *key, int value, char *command, int priority);
 
 void print_internal_queue(struct InternalQueueNode *head);
+
+struct InternalQueueNode *pop(struct InternalQueueNode **head);
+
+struct InternalQueueNode parse_params(const char *str);
+
+char *create_msg_to_worker(struct InternalQueueNode *node);
 
 // Variaveis globais
 extern int shmid;

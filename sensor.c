@@ -107,6 +107,7 @@ int main(int argc, char *argv[])
         str = sensor_to_string(&s1);
         sleep(s1.interval);
         write(pipe, str, strlen(str) + 1);
+        printf("Sent: %s\n", str);
         s1.num_messages++;
     }
 
