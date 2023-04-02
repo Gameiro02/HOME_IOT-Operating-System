@@ -50,6 +50,8 @@ struct InternalQueueNode
 typedef struct
 {
     Config config_file;
+    int *workers_status; // 0 - not working, 1 - working
+
 } SharedMemory;
 
 Config read_config_file(char *filename);

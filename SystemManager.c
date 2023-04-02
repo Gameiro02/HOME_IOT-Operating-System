@@ -7,6 +7,7 @@ SharedMemory *shm;
 sem_t *mutex_shm;
 sem_t *log_sem;
 sem_t *internal_queue_sem;
+sem_t *worker_status_sem;
 
 struct InternalQueueNode *internal_queue;
 
@@ -14,7 +15,13 @@ void inicilize_shared_memory(Config config)
 {
     sem_wait(mutex_shm);
     shm->config_file = config;
+    shm->workers_status = malloc(sizeof(int) * config.n_workers);
     sem_post(mutex_shm);
+
+    for (int i = 0; i < config.n_workers; i++)
+    {
+        shm->workers_status[i] = 0;
+    }
 }
 
 void print_shared_memory()
@@ -184,15 +191,22 @@ void *dispatcher_routine(void *arg)
             struct InternalQueueNode *node = pop(&internal_queue);
             // print_internal_queue(internal_queue);
 
-            // Send the message to the worker 1 (use the ,macros defined in the header file: READ, WRITE)
-
             char *msg = create_msg_to_worker(node);
-            printf("Sending message to worker 1: %s\n", msg);
 
-            // try to send the message to the worker 1
-            if (write(pipes[0][WRITE], msg, strlen(msg)) == -1)
+            sem_wait(mutex_shm);
+            int random_worker = rand() % shm->config_file.n_workers;
+
+            while (shm->workers_status[random_worker] != 0)
             {
-                perror("Error writing to pipe");
+                random_worker = rand() % shm->config_file.n_workers;
+            }
+            sem_post(mutex_shm);
+
+            // Send the message to the worker
+            if (write(pipes[random_worker][WRITE], msg, strlen(msg)) == -1)
+            {
+                perror("Erro ao escrever na pipe");
+                pthread_exit(NULL);
             }
 
             sleep(10);
@@ -380,6 +394,14 @@ int main()
     // Create the log sem
     log_sem = sem_open("log_sem", O_CREAT, 0777, 1);
     if (log_sem == SEM_FAILED)
+    {
+        perror("sem_open: ");
+        exit(1);
+    }
+
+    // Create the worker status sem
+    worker_status_sem = sem_open("worker_status_sem", O_CREAT, 0777, 1);
+    if (worker_status_sem == SEM_FAILED)
     {
         perror("sem_open: ");
         exit(1);
