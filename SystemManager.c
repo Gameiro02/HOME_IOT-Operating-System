@@ -77,18 +77,18 @@ void worker(int worker_id, int read_pipe, int write_pipe)
 
             // DO THE WORK
 
-            // // Parse the message: sensor_id#key#value witout segmentation fault
-            // struct InternalQueueNode aux = parse_params(buffer);
+            // Parse the message: sensor_id#key#value witout segmentation fault
+            struct InternalQueueNode aux = parse_params(buffer);
 
             // // printf("Sensor ID: %s\nKey: %s\nValue: %d\n", aux.sensor_id, aux.key, aux.value);
 
-            // // Search in the shared memory for the key
-            // if (!update_key_list(&shm->key_list, aux.key, aux.value))
-            // {
-            //     push_key_list(&shm->key_list, aux.key, aux.value);
-            // }
+            // Search in the shared memory for the key
+            if (!update_key_list(&shm->key_list, aux.key, aux.value))
+            {
+                push_key_list(&shm->key_list, aux.key, aux.value);
+            }
 
-            sleep(5);
+            sleep(3);
 
             printf("Worker %d: %s \n", worker_id, "DONE");
 
@@ -136,9 +136,12 @@ void *sensor_reader_routine(void *arg)
         if (read_bytes > 0)
         {
             printf("Sensor Reader Routine: %s \n", buffer);
+
             // sem_wait(internal_queue_sem);
             struct InternalQueueNode aux = parse_params(buffer);
             push_sensor_message_to_internal_queue(&internal_queue, aux.sensor_id, aux.key, aux.value, aux.command, aux.priority);
+            print_internal_queue(internal_queue);
+
             // sem_post(internal_queue_sem);
         }
         bzero(buffer, BUFFER_SIZE);
@@ -240,7 +243,8 @@ void *dispatcher_routine(void *arg)
                 pthread_exit(NULL);
             }
 
-            sleep(2);
+            bzero(msg, 100);
+            sleep(3);
         }
     }
 
@@ -343,7 +347,6 @@ struct InternalQueueNode *pop(struct InternalQueueNode **head)
     {
         // Armazena o primeiro nó da lista em uma variável temporária
         struct InternalQueueNode *temp = *head;
-        // printa o sensor
 
         // Ajusta o ponteiro do primeiro nó para o próximo nó da lista
         *head = (*head)->next;
@@ -603,7 +606,7 @@ int main()
     {
         if (fork() == 0)
         {
-            write(pipes[i][WRITE], "Hello", 6);
+            // write(pipes[i][WRITE], "Hello", 6);
             worker(i, pipes[i][READ], pipes[i][WRITE]);
             exit(0);
         }
