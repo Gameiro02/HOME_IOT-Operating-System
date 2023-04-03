@@ -105,6 +105,8 @@ void print_key_list(struct key_list_node *head);
 
 bool process_command_worker(const char *buffer, int worker_id);
 
+void print_key_list_to_user();
+
 // Variaveis globais
 extern int shmid;
 extern SharedMemory *shm;

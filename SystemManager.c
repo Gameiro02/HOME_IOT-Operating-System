@@ -83,20 +83,18 @@ void worker(int worker_id, int read_pipe, int write_pipe)
                 continue;
             }
 
-            // // Parse the message: sensor_id#key#value witout segmentation fault
-            // struct InternalQueueNode aux = parse_params(buffer);
+            // Parse the message: sensor_id#key#value witout segmentation fault
+            struct InternalQueueNode aux = parse_params(buffer);
 
-            // // // printf("Sensor ID: %s\nKey: %s\nValue: %d\n", aux.sensor_id, aux.key, aux.value);
+            // printf("Sensor ID: %s; Key: %s; Value: %d\n", aux.sensor_id, aux.key, aux.value);
 
-            // // Search in the shared memory for the key
-            // if (!update_key_list(&shm->key_list, aux.key, aux.value))
-            // {
-            //     push_key_list(&shm->key_list, aux.key, aux.value);
-            // }
+            // Search in the shared memory for the key
+            if (!update_key_list(&shm->key_list, aux.key, aux.value))
+            {
+                push_key_list(&shm->key_list, aux.key, aux.value);
+            }
 
-            // sleep(3);
-
-            // printf("Worker %d: %s \n", worker_id, "DONE");
+            printf("Worker %d: %s \n", worker_id, "DONE");
 
             sem_wait(mutex_shm);
             shm->workers_status[worker_id] = 0;
@@ -110,7 +108,8 @@ bool process_command_worker(const char *buffer, int worker_id)
 {
     if (strncmp(buffer, "stats", 5) == 0)
     {
-        printf("Worker %d: %s \n", worker_id, "STATS");
+        printf("Showing stats\n");
+        print_key_list_to_user();
     }
     else if (strncmp(buffer, "reset", 5) == 0)
     {
@@ -175,12 +174,12 @@ void *sensor_reader_routine(void *arg)
         // Imprime a mensagem
         if (read_bytes > 0)
         {
-            printf("Sensor Reader Routine: %s \n", buffer);
+            printf("Sensor Reader Routine Received: %s \n", buffer);
 
             // sem_wait(internal_queue_sem);
             struct InternalQueueNode aux = parse_params(buffer);
             push_sensor_message_to_internal_queue(&internal_queue, aux.sensor_id, aux.key, aux.value, aux.command, aux.priority);
-            print_internal_queue(internal_queue);
+            // print_internal_queue(internal_queue);
 
             // sem_post(internal_queue_sem);
         }
@@ -246,6 +245,74 @@ void alerts_watcher()
     sem_post(log_sem);
 }
 
+void print_key_list_to_user()
+{
+    sem_wait(mutex_shm);
+
+    if (shm->key_list == NULL)
+    {
+        printf("No keys to show\n");
+        sem_post(mutex_shm);
+        return;
+    }
+
+    struct key_list_node *head = shm->key_list;
+    printf("%-20s%-10s%-10s%-10s%-10s%-10s\n", "Key", "Last", "Min", "Max", "Avg", "Count");
+    while (head != NULL)
+    {
+        printf("%-20s", head->key);
+        printf("%-10d", head->last_value);
+        printf("%-10d", head->min_value);
+        printf("%-10d", head->max_value);
+        printf("%-10.2f", head->avg_value);
+        printf("%-10d\n", head->num_updates);
+        head = head->next;
+    }
+    sem_post(mutex_shm);
+}
+
+bool is_user_command(char *msg)
+{
+    if (msg == NULL)
+    {
+        printf("Error: is_user_command: msg is NULL\n");
+        return false;
+    }
+
+    if (strncmp(msg, "exit", 4) == 0)
+    {
+        return true;
+    }
+    else if (strncmp(msg, "stats", 5) == 0)
+    {
+        return true;
+    }
+    else if (strncmp(msg, "reset", 5) == 0)
+    {
+        return true;
+    }
+    else if (strncmp(msg, "sensors", 7) == 0)
+    {
+        return true;
+    }
+    else if (strncmp(msg, "add_alert", 9) == 0)
+    {
+        return true;
+    }
+    else if (strncmp(msg, "remove_alert", 12) == 0)
+    {
+        return true;
+    }
+    else if (strncmp(msg, "list_alerts", 11) == 0)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
 void *dispatcher_routine(void *arg)
 {
     sem_wait(log_sem);
@@ -264,10 +331,12 @@ void *dispatcher_routine(void *arg)
     {
         if (internal_queue != NULL)
         {
+            // print_internal_queue(internal_queue);
+
             struct InternalQueueNode *node = pop(&internal_queue);
 
             // Check it the messsage comes from the console or from a sensor
-            if (node->command != NULL)
+            if (is_user_command(node->command))
             {
                 char *comando = malloc(100);
                 sprintf(comando, "%s", node->command);
@@ -293,7 +362,6 @@ void *dispatcher_routine(void *arg)
             }
 
             bzero(msg, BUFFER_SIZE);
-            sleep(3);
         }
     }
 
@@ -521,13 +589,13 @@ bool update_key_list(struct key_list_node **head, char *key, int value)
             current->min_value = value;
 
         // Key found
-        print_key_list(*head);
+        // print_key_list(*head);
         return true;
     }
     else
     {
         // Key not found
-        print_key_list(*head);
+        // print_key_list(*head);
         return false;
     }
 }
