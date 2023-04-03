@@ -77,22 +77,26 @@ void worker(int worker_id, int read_pipe, int write_pipe)
             shm->workers_status[worker_id] = 1;
             sem_post(mutex_shm);
 
-            // DO THE WORK
-
-            // Parse the message: sensor_id#key#value witout segmentation fault
-            struct InternalQueueNode aux = parse_params(buffer);
-
-            // // printf("Sensor ID: %s\nKey: %s\nValue: %d\n", aux.sensor_id, aux.key, aux.value);
-
-            // Search in the shared memory for the key
-            if (!update_key_list(&shm->key_list, aux.key, aux.value))
+            if (process_command_worker(buffer, worker_id))
             {
-                push_key_list(&shm->key_list, aux.key, aux.value);
+                bzero(buffer, BUFFER_SIZE);
+                continue;
             }
 
-            sleep(3);
+            // // Parse the message: sensor_id#key#value witout segmentation fault
+            // struct InternalQueueNode aux = parse_params(buffer);
 
-            printf("Worker %d: %s \n", worker_id, "DONE");
+            // // // printf("Sensor ID: %s\nKey: %s\nValue: %d\n", aux.sensor_id, aux.key, aux.value);
+
+            // // Search in the shared memory for the key
+            // if (!update_key_list(&shm->key_list, aux.key, aux.value))
+            // {
+            //     push_key_list(&shm->key_list, aux.key, aux.value);
+            // }
+
+            // sleep(3);
+
+            // printf("Worker %d: %s \n", worker_id, "DONE");
 
             sem_wait(mutex_shm);
             shm->workers_status[worker_id] = 0;
@@ -100,6 +104,40 @@ void worker(int worker_id, int read_pipe, int write_pipe)
         }
         bzero(buffer, BUFFER_SIZE);
     }
+}
+
+bool process_command_worker(const char *buffer, int worker_id)
+{
+    if (strncmp(buffer, "stats", 5) == 0)
+    {
+        printf("Worker %d: %s \n", worker_id, "STATS");
+    }
+    else if (strncmp(buffer, "reset", 5) == 0)
+    {
+        printf("Worker %d: %s \n", worker_id, "RESET");
+    }
+    else if (strncmp(buffer, "sensors", 7) == 0)
+    {
+        printf("Worker %d: %s \n", worker_id, "SENSORS");
+    }
+    else if (strncmp(buffer, "add_alert", 9) == 0)
+    {
+        printf("Worker %d: %s \n", worker_id, "ADD_ALERT");
+    }
+    else if (strncmp(buffer, "remove_alert", 12) == 0)
+    {
+        printf("Worker %d: %s \n", worker_id, "REMOVE_ALERT");
+    }
+    else if (strncmp(buffer, "list_alerts", 11) == 0)
+    {
+        printf("Worker %d: %s \n", worker_id, "LIST_ALERTS");
+    }
+    else
+    {
+        return false;
+    }
+
+    return true;
 }
 
 void *sensor_reader_routine(void *arg)
@@ -220,23 +258,32 @@ void *dispatcher_routine(void *arg)
     int num_workers = shm->config_file.n_workers;
     sem_post(mutex_shm);
 
+    char msg[BUFFER_SIZE];
+
     while (true)
     {
         if (internal_queue != NULL)
         {
             struct InternalQueueNode *node = pop(&internal_queue);
-            // print_internal_queue(internal_queue);
 
-            char *msg = create_msg_to_worker(node);
+            // Check it the messsage comes from the console or from a sensor
+            if (node->command != NULL)
+            {
+                char *comando = malloc(100);
+                sprintf(comando, "%s", node->command);
+                strcpy(msg, comando);
+            }
+            else
+            {
+                char *sensor_msg = create_msg_to_worker(node);
+                strcpy(msg, sensor_msg);
+            }
 
             int random_worker = rand() % num_workers;
-
             while (shm->workers_status[random_worker] != 0)
             {
                 random_worker = rand() % num_workers;
             }
-
-            // printf("Worker %d\n", random_worker);
 
             // Send the message to the worker
             if (write(pipes[random_worker][WRITE], msg, strlen(msg)) == -1)
@@ -245,7 +292,7 @@ void *dispatcher_routine(void *arg)
                 pthread_exit(NULL);
             }
 
-            bzero(msg, 100);
+            bzero(msg, BUFFER_SIZE);
             sleep(3);
         }
     }
@@ -406,7 +453,7 @@ void push_key_list(struct key_list_node **head, char *key, int value)
     if (shm->num_keys_added >= shm->config_file.max_keys)
     {
         sem_post(mutex_shm);
-        printf("Max keys reached\n");
+        write_log("Max keys reached. Ignoring new key.");
         return;
     }
     sem_post(mutex_shm);
@@ -537,6 +584,7 @@ void handle_sigint(int sig)
 
 int main()
 {
+    clear_log();
     Config config = read_config_file("config.txt");
     signal(SIGINT, handle_sigint);
 

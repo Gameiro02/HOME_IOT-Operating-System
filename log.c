@@ -1,5 +1,11 @@
 #include "log.h"
 
+void clear_log()
+{
+    FILE *log_file = fopen("log.log", "w");
+    fclose(log_file);
+}
+
 void write_log(char *message)
 {
     // Get the current time hour:minute:second
@@ -9,7 +15,8 @@ void write_log(char *message)
     sprintf(time, "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
 
     // Open the log file
-    FILE *log_file = fopen("log.txt", "a");
+    FILE *log_file = fopen("log.log", "a");
+
     fprintf(log_file, "%s %s\n", time, message);
     fclose(log_file);
 
