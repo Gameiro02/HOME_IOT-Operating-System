@@ -63,6 +63,8 @@ typedef struct
 {
     Config config_file;
     int *workers_status; // 0 - not working, 1 - working
+
+    int num_keys_added;
     struct key_list_node *key_list;
 
 } SharedMemory;

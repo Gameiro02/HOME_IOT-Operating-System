@@ -16,6 +16,8 @@ void inicilize_shared_memory(Config config)
     sem_wait(mutex_shm);
     shm->config_file = config;
     shm->workers_status = malloc(sizeof(int) * config.n_workers);
+    shm->key_list = NULL;
+    shm->num_keys_added = 0;
     sem_post(mutex_shm);
 
     for (int i = 0; i < config.n_workers; i++)
@@ -400,6 +402,15 @@ void push_key_list(struct key_list_node **head, char *key, int value)
 {
     struct key_list_node *newNode = (struct key_list_node *)malloc(sizeof(struct key_list_node));
 
+    sem_wait(mutex_shm);
+    if (shm->num_keys_added >= shm->config_file.max_keys)
+    {
+        sem_post(mutex_shm);
+        printf("Max keys reached\n");
+        return;
+    }
+    sem_post(mutex_shm);
+
     if (newNode == NULL)
         return;
 
@@ -440,6 +451,9 @@ void push_key_list(struct key_list_node **head, char *key, int value)
             newNode->next = current;
         }
     }
+    sem_wait(mutex_shm);
+    shm->num_keys_added++;
+    sem_post(mutex_shm);
 }
 
 bool update_key_list(struct key_list_node **head, char *key, int value)
