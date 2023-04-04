@@ -18,12 +18,12 @@ void inicilize_shared_memory(Config config)
     shm->workers_status = malloc(sizeof(int) * config.n_workers);
     shm->key_list = NULL;
     shm->num_keys_added = 0;
-    sem_post(mutex_shm);
 
     for (int i = 0; i < config.n_workers; i++)
     {
         shm->workers_status[i] = 0;
     }
+    sem_post(mutex_shm);
 }
 
 void print_shared_memory()
@@ -73,9 +73,9 @@ void worker(int worker_id, int read_pipe, int write_pipe)
         {
             printf("Worker %d: %s \n", worker_id, buffer);
 
-            // sem_wait(mutex_shm);
+            sem_wait(mutex_shm);
             shm->workers_status[worker_id] = 1;
-            // sem_post(mutex_shm);
+            sem_post(mutex_shm);
 
             if (process_command_worker(buffer, worker_id))
             {
@@ -365,10 +365,13 @@ void *dispatcher_routine(void *arg)
             }
 
             int random_worker = rand() % num_workers;
+
+            sem_wait(mutex_shm);
             while (shm->workers_status[random_worker] != 0)
             {
                 random_worker = rand() % num_workers;
             }
+            sem_post(mutex_shm);
 
             // Send the message to the worker
             if (write(pipes[random_worker][WRITE], msg, strlen(msg)) == -1)
@@ -549,11 +552,13 @@ void push_key_list(struct key_list_node **head, char *key, int value)
 {
     struct key_list_node *newNode = (struct key_list_node *)malloc(sizeof(struct key_list_node));
 
+    sem_wait(mutex_shm);
     if (shm->num_keys_added >= shm->config_file.max_keys)
     {
         write_log("Max keys reached. Ignoring new key.");
         return;
     }
+    sem_post(mutex_shm);
 
     if (newNode == NULL)
         return;
@@ -595,7 +600,9 @@ void push_key_list(struct key_list_node **head, char *key, int value)
         }
     }
     // print_key_list(*head);
+    sem_wait(mutex_shm);
     shm->num_keys_added++;
+    sem_post(mutex_shm);
 }
 
 bool update_key_list(struct key_list_node **head, char *key, int value)
