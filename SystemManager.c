@@ -73,13 +73,14 @@ void worker(int worker_id, int read_pipe, int write_pipe)
         {
             printf("Worker %d: %s \n", worker_id, buffer);
 
-            sem_wait(mutex_shm);
+            // sem_wait(mutex_shm);
             shm->workers_status[worker_id] = 1;
-            sem_post(mutex_shm);
+            // sem_post(mutex_shm);
 
             if (process_command_worker(buffer, worker_id))
             {
                 bzero(buffer, BUFFER_SIZE);
+                printf("Worker %d: %s \n", worker_id, "COMMAND DONE");
                 continue;
             }
 
@@ -96,9 +97,9 @@ void worker(int worker_id, int read_pipe, int write_pipe)
 
             printf("Worker %d: %s \n", worker_id, "DONE");
 
-            sem_wait(mutex_shm);
+            // sem_wait(mutex_shm);
             shm->workers_status[worker_id] = 0;
-            sem_post(mutex_shm);
+            // sem_post(mutex_shm);
         }
         bzero(buffer, BUFFER_SIZE);
     }
@@ -114,6 +115,8 @@ bool process_command_worker(const char *buffer, int worker_id)
     else if (strncmp(buffer, "reset", 5) == 0)
     {
         printf("Worker %d: %s \n", worker_id, "RESET");
+        reset_key_list();
+        printf("OK\n");
     }
     else if (strncmp(buffer, "sensors", 7) == 0)
     {
@@ -226,10 +229,10 @@ void *console_reader_routine(void *arg)
         if (read_bytes > 0)
         {
             printf("User Console: %s \n", buffer);
-            sem_wait(internal_queue_sem);
+            // sem_wait(internal_queue_sem);
             push_sensor_message_to_internal_queue(&internal_queue, NULL, NULL, 0, buffer, 0);
             // print_internal_queue(internal_queue);
-            sem_post(internal_queue_sem);
+            // sem_post(internal_queue_sem);
         }
         bzero(buffer, BUFFER_SIZE);
     }
@@ -366,6 +369,22 @@ void *dispatcher_routine(void *arg)
     }
 
     pthread_exit(NULL);
+}
+
+void reset_key_list()
+{
+    sem_wait(mutex_shm);
+    struct key_list_node *head = shm->key_list;
+    while (head != NULL)
+    {
+        head->last_value = 0;
+        head->min_value = 0;
+        head->max_value = 0;
+        head->avg_value = 0;
+        head->num_updates = 0;
+        head = head->next;
+    }
+    sem_post(mutex_shm);
 }
 
 char *create_msg_to_worker(struct InternalQueueNode *node)
@@ -517,14 +536,11 @@ void push_key_list(struct key_list_node **head, char *key, int value)
 {
     struct key_list_node *newNode = (struct key_list_node *)malloc(sizeof(struct key_list_node));
 
-    sem_wait(mutex_shm);
     if (shm->num_keys_added >= shm->config_file.max_keys)
     {
-        sem_post(mutex_shm);
         write_log("Max keys reached. Ignoring new key.");
         return;
     }
-    sem_post(mutex_shm);
 
     if (newNode == NULL)
         return;
@@ -533,11 +549,10 @@ void push_key_list(struct key_list_node **head, char *key, int value)
         strcpy(newNode->key, key);
 
     newNode->last_value = value;
-
-    newNode->avg_value = (double)value;
-    newNode->num_updates = 1;
-    newNode->max_value = value;
     newNode->min_value = value;
+    newNode->max_value = value;
+    newNode->avg_value = value;
+    newNode->num_updates = 1;
     newNode->next = NULL;
 
     if (*head == NULL)
@@ -549,7 +564,7 @@ void push_key_list(struct key_list_node **head, char *key, int value)
         struct key_list_node *current = *head;
         struct key_list_node *previous = NULL;
 
-        while (current != NULL && strcmp(current->key, key) < 0)
+        while (current != NULL && strcmp(current->key, key) != 0)
         {
             previous = current;
             current = current->next;
@@ -566,14 +581,20 @@ void push_key_list(struct key_list_node **head, char *key, int value)
             newNode->next = current;
         }
     }
-    sem_wait(mutex_shm);
+    // print_key_list(*head);
     shm->num_keys_added++;
-    sem_post(mutex_shm);
 }
 
 bool update_key_list(struct key_list_node **head, char *key, int value)
 {
     struct key_list_node *current = *head;
+    if (current == NULL)
+    {
+        printf("Key list is empty. Ignoring update.\n");
+        return false;
+    }
+    // print_key_list(*head);
+
     while (current != NULL && strcmp(current->key, key) != 0)
     {
         current = current->next;

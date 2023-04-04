@@ -107,6 +107,8 @@ bool process_command_worker(const char *buffer, int worker_id);
 
 void print_key_list_to_user();
 
+void reset_key_list();
+
 // Variaveis globais
 extern int shmid;
 extern SharedMemory *shm;
