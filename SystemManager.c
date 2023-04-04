@@ -6,9 +6,10 @@ int shmid;
 SharedMemory *shm;
 sem_t *mutex_shm;
 sem_t *log_sem;
-sem_t *internal_queue_sem;
+sem_t *key_list_empty_sem;
 sem_t *worker_status_sem;
 
+pthread_mutex_t internal_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct InternalQueueNode *internal_queue;
 
 void inicilize_shared_memory(Config config)
@@ -62,12 +63,6 @@ void worker(int worker_id, int read_pipe, int write_pipe)
             pthread_exit(NULL);
         }
 
-        // Se a mensagem for "exit" termina a thread
-        if (strcmp(buffer, "exit") == 0)
-        {
-            break;
-        }
-
         // Imprime a mensagem
         if (read_bytes > 0)
         {
@@ -81,25 +76,25 @@ void worker(int worker_id, int read_pipe, int write_pipe)
             {
                 bzero(buffer, BUFFER_SIZE);
                 printf("Worker %d: %s \n", worker_id, "COMMAND DONE");
+                shm->workers_status[worker_id] = 0;
+                sem_post(mutex_shm);
                 continue;
             }
 
             // Parse the message: sensor_id#key#value witout segmentation fault
             struct InternalQueueNode aux = parse_params(buffer);
 
+            update_key_list(aux.key, aux.value);
+
             // printf("Sensor ID: %s; Key: %s; Value: %d\n", aux.sensor_id, aux.key, aux.value);
 
-            // Search in the shared memory for the key
-            if (!update_key_list(&shm->key_list, aux.key, aux.value))
-            {
-                push_key_list(&shm->key_list, aux.key, aux.value);
-            }
+            printf("Worker %d: %s \n", worker_id, "DONE1");
 
-            printf("Worker %d: %s \n", worker_id, "DONE");
-
-            // sem_wait(mutex_shm);
+            sem_wait(mutex_shm);
             shm->workers_status[worker_id] = 0;
-            // sem_post(mutex_shm);
+            sem_post(mutex_shm);
+
+            printf("Worker %d: %s \n", worker_id, "DONE2");
         }
         bzero(buffer, BUFFER_SIZE);
     }
@@ -257,7 +252,7 @@ void *console_reader_routine(void *arg)
 void alerts_watcher()
 {
     sem_wait(log_sem);
-    write_log("THREAD ALERTS_WATCHER CREATED");
+    write_log("PROCESS ALERTS_WATCHER CREATED");
     sem_post(log_sem);
 }
 
@@ -350,6 +345,11 @@ void *dispatcher_routine(void *arg)
             // print_internal_queue(internal_queue);
 
             struct InternalQueueNode *node = pop(&internal_queue);
+            if (node == NULL)
+            {
+                bzero(msg, BUFFER_SIZE);
+                continue;
+            }
 
             // Check it the messsage comes from the console or from a sensor
             if (is_user_command(node->command))
@@ -364,9 +364,19 @@ void *dispatcher_routine(void *arg)
                 strcpy(msg, sensor_msg);
             }
 
-            int random_worker = rand() % num_workers;
+            int random_worker;
 
+            if (num_workers == 1)
+            {
+                random_worker = 0;
+            }
+            else
+            {
+                random_worker = rand() % num_workers;
+            }
+            // printf("aaa\n");
             sem_wait(mutex_shm);
+            // printf("bbb\n");
             while (shm->workers_status[random_worker] != 0)
             {
                 random_worker = rand() % num_workers;
@@ -379,7 +389,10 @@ void *dispatcher_routine(void *arg)
                 perror("Erro ao escrever na pipe");
                 pthread_exit(NULL);
             }
-
+            else
+            {
+                printf("Mensagem enviada para o worker %d: %s\n", random_worker, msg);
+            }
             bzero(msg, BUFFER_SIZE);
         }
     }
@@ -456,6 +469,8 @@ bool push_sensor_message_to_internal_queue(struct InternalQueueNode **head, char
         strcpy(newNode->command, command);
     newNode->next = NULL;
 
+    pthread_mutex_lock(&internal_queue_mutex);
+
     // Se a lista estiver vazia, o novo nó será o primeiro
     if (*head == NULL)
     {
@@ -486,13 +501,17 @@ bool push_sensor_message_to_internal_queue(struct InternalQueueNode **head, char
         }
     }
 
+    pthread_mutex_unlock(&internal_queue_mutex);
+    // print_internal_queue(*head);
     return true;
 }
 struct InternalQueueNode *pop(struct InternalQueueNode **head)
 {
+    pthread_mutex_lock(&internal_queue_mutex);
     if (*head == NULL)
     {
         // Se a lista estiver vazia, retorna NULL
+        pthread_mutex_unlock(&internal_queue_mutex);
         return NULL;
     }
     else
@@ -504,12 +523,14 @@ struct InternalQueueNode *pop(struct InternalQueueNode **head)
         *head = (*head)->next;
 
         // Retorna o nó removido
+        pthread_mutex_unlock(&internal_queue_mutex);
         return temp;
     }
 }
 
 void print_internal_queue(struct InternalQueueNode *head)
 {
+    pthread_mutex_lock(&internal_queue_mutex);
     printf("========== PRINT QUEUE ========== \n");
     while (head != NULL)
     {
@@ -546,6 +567,7 @@ void print_internal_queue(struct InternalQueueNode *head)
         head = head->next;
     }
     printf("================================\n");
+    pthread_mutex_unlock(&internal_queue_mutex);
 }
 
 void push_key_list(struct key_list_node **head, char *key, int value)
@@ -556,15 +578,24 @@ void push_key_list(struct key_list_node **head, char *key, int value)
     if (shm->num_keys_added >= shm->config_file.max_keys)
     {
         write_log("Max keys reached. Ignoring new key.");
+        sem_post(mutex_shm);
         return;
     }
-    sem_post(mutex_shm);
 
     if (newNode == NULL)
+    {
+        sem_post(mutex_shm);
         return;
+    }
 
     if (key != NULL)
+    {
         strcpy(newNode->key, key);
+    }
+    else
+    {
+        strcpy(newNode->key, "null");
+    }
 
     newNode->last_value = value;
     newNode->min_value = value;
@@ -600,49 +631,91 @@ void push_key_list(struct key_list_node **head, char *key, int value)
         }
     }
     // print_key_list(*head);
-    sem_wait(mutex_shm);
     shm->num_keys_added++;
     sem_post(mutex_shm);
 }
 
-bool update_key_list(struct key_list_node **head, char *key, int value)
+bool update_key_list(const char *key, int value)
 {
-    struct key_list_node *current = *head;
-    if (current == NULL)
-    {
-        printf("Key list is empty. Ignoring update.\n");
-        return false;
-    }
-    // print_key_list(*head);
 
+    // Aguarde a disponibilidade do semáforo
+    sem_wait(mutex_shm);
+
+    // printf("key = %s, value = %d\n", key, value);
+
+    // Verificar se o número máximo de chaves já foi atingido
+    if (shm->num_keys_added >= shm->config_file.max_keys)
+    {
+        sem_post(mutex_shm);
+        return false; // O número máximo de chaves foi atingido, não podemos adicionar uma nova chave
+    }
+
+    struct key_list_node *prev = NULL;
+    struct key_list_node *current = shm->key_list;
+    // printf("aaa\n");
     while (current != NULL && strcmp(current->key, key) != 0)
     {
+        prev = current;
         current = current->next;
     }
-    if (current != NULL)
+    // printf("bbb\n");
+    if (current == NULL)
     {
-        current->last_value = value;
-        current->avg_value = (current->avg_value * current->num_updates + value) / (current->num_updates + 1);
-        current->num_updates++;
-        if (value > current->max_value)
-            current->max_value = value;
-        if (value < current->min_value)
-            current->min_value = value;
+        // A chave não existe na lista, então adicionamos um novo nó
+        struct key_list_node *new_node = (struct key_list_node *)malloc(sizeof(struct key_list_node));
+        if (new_node == NULL)
+        {
+            sem_post(mutex_shm);
+            return false; // Não conseguimos alocar memória para o novo nó
+        }
+        strcpy(new_node->key, key);
+        new_node->last_value = value;
+        new_node->min_value = value;
+        new_node->max_value = value;
+        new_node->avg_value = value;
+        new_node->num_updates = 1;
+        new_node->next = NULL;
 
-        // Key found
-        // print_key_list(*head);
-        return true;
+        if (prev == NULL)
+        {
+            // A lista está vazia, então o novo nó será o primeiro
+            shm->key_list = new_node;
+        }
+        else
+        {
+            // O novo nó será adicionado depois do último nó existente
+            prev->next = new_node;
+        }
+
+        // Atualizar o número de chaves adicionadas
+        shm->num_keys_added++;
     }
     else
     {
-        // Key not found
-        // print_key_list(*head);
-        return false;
+        // A chave já existe na lista, então atualizamos o nó correspondente
+        current->last_value = value;
+        if (value < current->min_value)
+        {
+            current->min_value = value;
+        }
+        if (value > current->max_value)
+        {
+            current->max_value = value;
+        }
+        current->avg_value = ((current->avg_value * current->num_updates) + value) / (current->num_updates + 1);
+        current->num_updates++;
     }
+
+    sem_post(mutex_shm);
+
+    return true;
 }
 
-void print_key_list(struct key_list_node *head)
+void print_key_list()
 {
+    sem_wait(mutex_shm);
+    struct key_list_node *head = shm->key_list;
+
     printf("========== PRINT KEY LIST ========== \n");
     while (head != NULL)
     {
@@ -664,6 +737,7 @@ void print_key_list(struct key_list_node *head)
         head = head->next;
     }
     printf("================================\n");
+    sem_post(mutex_shm);
 }
 
 void handle_sigint(int sig)
@@ -681,7 +755,6 @@ void handle_sigint(int sig)
     // destroy all the semaphores
     sem_destroy(mutex_shm);
     sem_destroy(log_sem);
-    sem_destroy(internal_queue_sem);
     sem_destroy(worker_status_sem);
 
     // Close the named pipes
@@ -714,7 +787,6 @@ int main()
         exit(1);
     }
 
-    // Create semaphore posix
     mutex_shm = sem_open("mutex_shm", O_CREAT, 0777, 1);
     if (mutex_shm == SEM_FAILED)
     {
@@ -738,17 +810,16 @@ int main()
         exit(1);
     }
 
-    sem_wait(log_sem);
-    write_log("HOME_IOT SIMULATOR STARTING");
-    sem_post(log_sem);
-
-    // Create the INTERNAL_QUEUE sem
-    internal_queue_sem = sem_open("internal_queue_sem", O_CREAT, 0777, 1);
-    if (internal_queue_sem == SEM_FAILED)
+    key_list_empty_sem = sem_open("key_list_empty_sem", O_CREAT, 0777, 1);
+    if (key_list_empty_sem == SEM_FAILED)
     {
         perror("sem_open: ");
         exit(1);
     }
+
+    sem_wait(log_sem);
+    write_log("HOME_IOT SIMULATOR STARTING");
+    sem_post(log_sem);
 
     inicilize_shared_memory(config);
 
