@@ -25,4 +25,7 @@ Mais para a frente, para operações mais complexas vão ser necessários mais s
 No alerts watcher é preciso meter uma vairavel de condição para nao haver busy waiting
 
 
-LISTA DE TAREFAS A CUMPRIR:
+---------------------------------------------
+
+Perguntar ao stor como e que se vai sinconizar a fila com vairos workers
+Perguntar ao stor se e suposto aparecer 5 vezes exiting lalalala quando se faz control c

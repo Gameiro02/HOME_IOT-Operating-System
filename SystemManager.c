@@ -105,6 +105,18 @@ void worker(int worker_id, int read_pipe, int write_pipe)
     }
 }
 
+void print_only_the_keys()
+{
+    sem_wait(mutex_shm);
+    struct key_list_node *aux = shm->key_list;
+    while (aux != NULL)
+    {
+        printf("%s\n", aux->key);
+        aux = aux->next;
+    }
+    sem_post(mutex_shm);
+}
+
 bool process_command_worker(const char *buffer, int worker_id)
 {
     if (strncmp(buffer, "stats", 5) == 0)
@@ -121,6 +133,7 @@ bool process_command_worker(const char *buffer, int worker_id)
     else if (strncmp(buffer, "sensors", 7) == 0)
     {
         printf("Worker %d: %s \n", worker_id, "SENSORS");
+        print_only_the_keys();
     }
     else if (strncmp(buffer, "add_alert", 9) == 0)
     {
