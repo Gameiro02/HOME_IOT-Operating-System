@@ -99,7 +99,7 @@ char *create_msg_to_worker(struct InternalQueueNode *node);
 
 void push_key_list(struct key_list_node **head, char *key, int value);
 
-bool update_key_list(const char *key, int value);
+bool add_or_update_node(struct key_list_node **head, char *key, int value);
 
 void print_key_list();
 
@@ -108,6 +108,8 @@ bool process_command_worker(const char *buffer, int worker_id);
 void print_key_list_to_user();
 
 void reset_key_list();
+
+bool check_msg(char *str);
 
 // Variaveis globais
 extern int shmid;

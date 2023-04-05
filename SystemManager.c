@@ -11,6 +11,7 @@ sem_t *worker_status_sem;
 
 pthread_mutex_t internal_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct InternalQueueNode *internal_queue;
+struct key_list_node key_list_head;
 
 void inicilize_shared_memory(Config config)
 {
@@ -24,6 +25,7 @@ void inicilize_shared_memory(Config config)
     {
         shm->workers_status[i] = 0;
     }
+    shm->key_list = &key_list_head;
     sem_post(mutex_shm);
 }
 
@@ -76,6 +78,17 @@ void worker(int worker_id, int read_pipe, int write_pipe)
             {
                 bzero(buffer, BUFFER_SIZE);
                 printf("Worker %d: %s \n", worker_id, "COMMAND DONE");
+                sem_wait(mutex_shm);
+                shm->workers_status[worker_id] = 0;
+                sem_post(mutex_shm);
+                continue;
+            }
+
+            if (!check_msg(buffer))
+            {
+                bzero(buffer, BUFFER_SIZE);
+                printf("Worker %d: %s \n", worker_id, "INVALID MESSAGE");
+                sem_wait(mutex_shm);
                 shm->workers_status[worker_id] = 0;
                 sem_post(mutex_shm);
                 continue;
@@ -84,9 +97,14 @@ void worker(int worker_id, int read_pipe, int write_pipe)
             // Parse the message: sensor_id#key#value witout segmentation fault
             struct InternalQueueNode aux = parse_params(buffer);
 
-            update_key_list(aux.key, aux.value);
-
-            // printf("Sensor ID: %s; Key: %s; Value: %d\n", aux.sensor_id, aux.key, aux.value);
+            if (!add_or_update_node(&shm->key_list, aux.key, aux.value))
+            {
+                bzero(buffer, BUFFER_SIZE);
+                printf("Worker %d: %s \n", worker_id, "ERROR UPDATING KEY LIST");
+                sem_wait(mutex_shm);
+                shm->workers_status[worker_id] = 0;
+                sem_post(mutex_shm);
+            }
 
             printf("Worker %d: %s \n", worker_id, "DONE1");
 
@@ -635,79 +653,65 @@ void push_key_list(struct key_list_node **head, char *key, int value)
     sem_post(mutex_shm);
 }
 
-bool update_key_list(const char *key, int value)
+bool add_or_update_node(struct key_list_node **head, char *key, int value)
 {
+    if (head == NULL || key == NULL || mutex_shm == NULL)
+    {
+        return false;
+    }
 
-    // Aguarde a disponibilidade do semáforo
     sem_wait(mutex_shm);
 
-    // printf("key = %s, value = %d\n", key, value);
+    struct key_list_node *curr = *head;
+    struct key_list_node *prev = NULL;
+    while (curr != NULL)
+    {
+        if (strcmp(curr->key, key) == 0)
+        {
+            // Se a chave já existe, atualize as informações do nó
+            curr->last_value = value;
+            if (value < curr->min_value)
+            {
+                curr->min_value = value;
+            }
+            if (value > curr->max_value)
+            {
+                curr->max_value = value;
+            }
+            curr->avg_value = (curr->avg_value * curr->num_updates + value) / (curr->num_updates + 1);
+            curr->num_updates++;
+            sem_post(mutex_shm);
+            return true;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
 
-    // Verificar se o número máximo de chaves já foi atingido
-    if (shm->num_keys_added >= shm->config_file.max_keys)
+    // Se a chave não existe, crie um novo nó e adicione-o ao final da lista
+    struct key_list_node *new_node = (struct key_list_node *)malloc(sizeof(struct key_list_node));
+    if (new_node == NULL)
     {
         sem_post(mutex_shm);
-        return false; // O número máximo de chaves foi atingido, não podemos adicionar uma nova chave
+        return false;
     }
+    strcpy(new_node->key, key);
+    new_node->last_value = value;
+    new_node->min_value = value;
+    new_node->max_value = value;
+    new_node->avg_value = value;
+    new_node->num_updates = 1;
+    new_node->next = NULL;
 
-    struct key_list_node *prev = NULL;
-    struct key_list_node *current = shm->key_list;
-    // printf("aaa\n");
-    while (current != NULL && strcmp(current->key, key) != 0)
+    if (*head == NULL)
     {
-        prev = current;
-        current = current->next;
-    }
-    // printf("bbb\n");
-    if (current == NULL)
-    {
-        // A chave não existe na lista, então adicionamos um novo nó
-        struct key_list_node *new_node = (struct key_list_node *)malloc(sizeof(struct key_list_node));
-        if (new_node == NULL)
-        {
-            sem_post(mutex_shm);
-            return false; // Não conseguimos alocar memória para o novo nó
-        }
-        strcpy(new_node->key, key);
-        new_node->last_value = value;
-        new_node->min_value = value;
-        new_node->max_value = value;
-        new_node->avg_value = value;
-        new_node->num_updates = 1;
-        new_node->next = NULL;
-
-        if (prev == NULL)
-        {
-            // A lista está vazia, então o novo nó será o primeiro
-            shm->key_list = new_node;
-        }
-        else
-        {
-            // O novo nó será adicionado depois do último nó existente
-            prev->next = new_node;
-        }
-
-        // Atualizar o número de chaves adicionadas
-        shm->num_keys_added++;
+        *head = new_node;
     }
     else
     {
-        // A chave já existe na lista, então atualizamos o nó correspondente
-        current->last_value = value;
-        if (value < current->min_value)
-        {
-            current->min_value = value;
-        }
-        if (value > current->max_value)
-        {
-            current->max_value = value;
-        }
-        current->avg_value = ((current->avg_value * current->num_updates) + value) / (current->num_updates + 1);
-        current->num_updates++;
+        prev->next = new_node;
     }
 
     sem_post(mutex_shm);
-
     return true;
 }
 
@@ -762,6 +766,63 @@ void handle_sigint(int sig)
     unlink(SENSOR_PIPE);
 
     exit(0);
+}
+
+bool check_msg(char *str)
+
+{
+    // Verifica se a string é nula ou vazia
+    if (str == NULL || str[0] == '\0')
+    {
+        return false;
+    }
+
+    char *token = strtok(str, "#");
+    int count = 0;
+
+    while (token != NULL)
+    {
+        count++;
+        if (count == 1)
+        {
+            // Verifica o sensor_id
+            if (strlen(token) < 1)
+            {
+                return false;
+            }
+        }
+        else if (count == 2)
+        {
+            // Verifica a key
+            if (strlen(token) < 1)
+            {
+                return false;
+            }
+        }
+        else if (count == 3)
+        {
+            // Verifica o value
+            int val = atoi(token);
+            if (val <= 0)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // Formato inválido
+            return false;
+        }
+        token = strtok(NULL, "#");
+    }
+
+    // Verifica se há exatamente três campos separados por '#'
+    if (count != 3)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 int main()
