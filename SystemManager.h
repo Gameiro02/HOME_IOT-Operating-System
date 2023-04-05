@@ -26,6 +26,8 @@
 #define WRITE 1
 #define READ 0
 
+#define QUEUE_SIZE 100
+
 typedef struct
 {
     int queue_sz;
@@ -41,8 +43,14 @@ struct alert_list_node
     char key[BUFFER_SIZE];
     int min_value;
     int max_value;
+};
 
-    struct alert_list_node *next;
+struct queue
+{
+    struct alert_list_node data[QUEUE_SIZE];
+    int front;
+    int rear;
+    int size;
 };
 
 struct key_list_node
@@ -78,7 +86,7 @@ typedef struct
     int num_alerts_added;
 
     struct key_list_node *key_list;
-    struct alert_list_node *alert_list;
+    struct queue alert_queue;
 
 } SharedMemory;
 
@@ -130,10 +138,24 @@ bool remove_alert(struct alert_list_node **head, char *id);
 
 void list_alerts(struct alert_list_node *head);
 
+void init_queue(struct queue *q);
+int is_empty(struct queue *q);
+int is_full(struct queue *q);
+void enqueue(struct queue *q, struct alert_list_node data);
+void dequeue_by_id(struct queue *q, char *id);
+struct alert_list_node create_alert_list_node(char *id, char *key, int min_value, int max_value);
+void print_queue(struct queue *q);
+
 // Variaveis globais
 extern int shmid;
 extern SharedMemory *shm;
 extern sem_t *mutex_shm;
-extern sem_t *mutex_sensor_pipe;
+extern sem_t *log_sem;
+extern sem_t *key_list_empty_sem;
+extern sem_t *worker_status_sem;
+extern pthread_mutex_t internal_queue_mutex;
+extern struct InternalQueueNode *internal_queue;
+extern struct key_list_node key_list_head;
+extern struct alert_list_node alert_list_head;
 
 #endif

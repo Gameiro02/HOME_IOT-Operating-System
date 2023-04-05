@@ -11,8 +11,6 @@ sem_t *worker_status_sem;
 
 pthread_mutex_t internal_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct InternalQueueNode *internal_queue;
-struct key_list_node key_list_head;
-struct alert_list_node alert_list_head;
 
 void inicilize_shared_memory(Config config)
 {
@@ -27,8 +25,7 @@ void inicilize_shared_memory(Config config)
     {
         shm->workers_status[i] = 0;
     }
-    shm->key_list = &key_list_head;
-    shm->alert_list = &alert_list_head;
+    init_queue(&shm->alert_queue);
     sem_post(mutex_shm);
 }
 
@@ -127,6 +124,12 @@ void print_only_the_keys()
     struct key_list_node *aux = shm->key_list;
     while (aux != NULL)
     {
+        // if the key is null we skip it
+        if (aux->key == NULL || aux->key[0] == '\0' || aux->key[0] == ' ')
+        {
+            aux = aux->next;
+            continue;
+        }
         printf("%s\n", aux->key);
         aux = aux->next;
     }
@@ -174,8 +177,8 @@ bool process_command_worker(const char *buffer, int worker_id)
         // add_alert AL2 ROOM1_TMP 10 25
         // add_alert AL3 ROOM2_TMP 11 26
 
-        add_alert(&shm->alert_list, id, key, min, max);
-        // list_alerts(shm->alert_list);
+        struct alert_list_node alert = create_alert_list_node(id, key, min, max);
+        enqueue(&shm->alert_queue, alert);
     }
     else if (strncmp(buffer, "remove_alert", 12) == 0)
     {
@@ -186,12 +189,12 @@ bool process_command_worker(const char *buffer, int worker_id)
         token = strtok(NULL, " ");
         char *id = malloc(strlen(token));
         strcpy(id, token);
-        remove_alert(&shm->alert_list, id);
+        dequeue_by_id(&shm->alert_queue, id);
     }
     else if (strncmp(buffer, "list_alerts", 11) == 0)
     {
         printf("Worker %d: %s \n", worker_id, "LIST_ALERTS");
-        list_alerts(shm->alert_list);
+        print_queue(&shm->alert_queue);
     }
     else
     {
@@ -877,102 +880,6 @@ bool check_msg(char *buffer)
     return true;
 }
 
-bool add_alert(struct alert_list_node **head, char *id, char *key, int min_value, int max_value)
-{
-    if (head == NULL || id == NULL || key == NULL)
-    {
-        return false;
-    }
-
-    sem_wait(mutex_shm);
-
-    struct alert_list_node *curr = *head;
-    while (curr != NULL)
-    {
-        if (strcmp(curr->key, key) == 0)
-        {
-            sem_post(mutex_shm);
-            // Já existe um alerta associado a esta key
-            return false;
-        }
-        curr = curr->next;
-    }
-
-    // Cria um novo nó de alerta e adiciona-o ao início da lista
-    struct alert_list_node *new_node = (struct alert_list_node *)malloc(sizeof(struct alert_list_node));
-    if (new_node == NULL)
-    {
-        sem_post(mutex_shm);
-        return false;
-    }
-    strcpy(new_node->id, id);
-    strcpy(new_node->key, key);
-    new_node->min_value = min_value;
-    new_node->max_value = max_value;
-    new_node->next = *head;
-    *head = new_node;
-
-    sem_post(mutex_shm);
-
-    return true;
-}
-
-bool remove_alert(struct alert_list_node **head, char *id)
-{
-    if (head == NULL || id == NULL || mutex_shm == NULL)
-    {
-        return false;
-    }
-
-    sem_wait(mutex_shm);
-
-    struct alert_list_node *curr = *head;
-    struct alert_list_node *prev = NULL;
-
-    while (curr != NULL)
-    {
-        if (strcmp(curr->id, id) == 0)
-        {
-            // Encontrou o alerta a remover
-            if (prev == NULL)
-            {
-                // O alerta a remover é o primeiro nó da lista
-                *head = curr->next;
-            }
-            else
-            {
-                // O alerta a remover não é o primeiro nó da lista
-                prev->next = curr->next;
-            }
-            free(curr);
-
-            sem_post(mutex_shm);
-            return true;
-        }
-        prev = curr;
-        curr = curr->next;
-    }
-
-    // Não encontrou o alerta a remover
-    sem_post(mutex_shm);
-    return false;
-}
-
-void list_alerts(struct alert_list_node *head)
-{
-    sem_wait(mutex_shm);
-
-    printf("%-4s %-15s %-4s %-4s\n", "ID", "Key", "MIN", "MAX");
-    printf("----------------------------------------\n");
-    while (head != NULL)
-    {
-        printf("%-4s %-15s %-4d %-4d\n", head->id, head->key, head->min_value, head->max_value);
-        head = head->next;
-    }
-
-    sem_post(mutex_shm);
-}
-
 int main()
 {
     clear_log();
@@ -1088,6 +995,113 @@ int main()
     }
 
     return 0;
+}
+
+void init_queue(struct queue *q)
+{
+    q->front = 0;
+    q->rear = -1;
+    q->size = 0;
+}
+
+int is_empty(struct queue *q)
+{
+    return (q->size == 0);
+}
+
+int is_full(struct queue *q)
+{
+    return (q->size == QUEUE_SIZE);
+}
+
+void enqueue(struct queue *q, struct alert_list_node data)
+{
+    if (is_full(q))
+    {
+        printf("Queue is full!\n");
+        exit(1);
+    }
+    else
+    {
+        q->rear++;
+        if (q->rear == QUEUE_SIZE)
+        {
+            q->rear = 0;
+        }
+        q->data[q->rear] = data;
+        q->size++;
+    }
+}
+
+void dequeue_by_id(struct queue *q, char *id)
+{
+    if (is_empty(q))
+    {
+        printf("Queue is empty!\n");
+        exit(1);
+    }
+    else
+    {
+        int found = 0;
+        int index = q->front;
+        while (index <= q->rear)
+        {
+            if (strcmp(q->data[index].id, id) == 0)
+            {
+                found = 1;
+                break;
+            }
+            index++;
+        }
+        if (found == 0)
+        {
+            printf("Node with id %s not found!\n", id);
+            exit(1);
+        }
+        else
+        {
+            while (index > q->front)
+            {
+                q->data[index] = q->data[index - 1];
+                index--;
+            }
+            q->front++;
+            q->size--;
+        }
+    }
+}
+
+struct alert_list_node create_alert_list_node(char *id, char *key, int min_value, int max_value)
+{
+    struct alert_list_node new_node;
+    strcpy(new_node.id, id);
+    strcpy(new_node.key, key);
+    new_node.min_value = min_value;
+    new_node.max_value = max_value;
+    return new_node;
+}
+
+void print_queue(struct queue *q)
+{
+    if (is_empty(q))
+    {
+        printf("Queue is empty!\n");
+    }
+    else
+    {
+        printf("%-10s %-15s %-10s %-10s\n", "ID", "Key", "MIN", "MAX");
+        int i = q->front;
+        while (i != q->rear)
+        {
+            printf("%-10s %-15s %-10d %-10d\n", q->data[i].id, q->data[i].key, q->data[i].min_value, q->data[i].max_value);
+            i++;
+            if (i == QUEUE_SIZE)
+            {
+                i = 0;
+            }
+        }
+        printf("%-10s %-15s %-10d %-10d\n", q->data[i].id, q->data[i].key, q->data[i].min_value, q->data[i].max_value);
+    }
 }
 
 // Run: gcc -o SystemManager SystemManager.c SystemManagerFuncs.c SystemManager.h log.c log.h && ./SystemManager
