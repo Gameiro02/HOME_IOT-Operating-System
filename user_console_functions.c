@@ -38,8 +38,11 @@ bool read_command(int console_identifier)
     else if (strncmp(command, "add_alert ", 10) == 0)
     {
         // Check if the id is valid
+        char copy_command[MAX_COMMAND_LENGTH];
+        strcpy(copy_command, command);
+
         char *key, *min, *max;
-        key = strtok(command, " ");
+        key = strtok(copy_command, " ");
         key = strtok(NULL, " ");
         if (strlen(key) < MIN_ID_LENGTH || strlen(key) > MAX_ID_LENGTH)
         {
@@ -71,8 +74,10 @@ bool read_command(int console_identifier)
     }
     else if (strncmp(command, "remove_alert ", 13) == 0)
     {
+        char copy_command[MAX_COMMAND_LENGTH];
+        strcpy(copy_command, command);
         char *id;
-        id = strtok(command, " ");
+        id = strtok(copy_command, " ");
         id = strtok(NULL, " ");
 
         if (strlen(id) < MIN_ID_LENGTH || strlen(id) > MAX_ID_LENGTH)

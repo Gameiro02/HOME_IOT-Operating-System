@@ -35,6 +35,16 @@ typedef struct
     int max_alerts;
 } Config;
 
+struct alert_list_node
+{
+    char id[BUFFER_SIZE];
+    char key[BUFFER_SIZE];
+    int min_value;
+    int max_value;
+
+    struct alert_list_node *next;
+};
+
 struct key_list_node
 {
     char key[BUFFER_SIZE];
@@ -65,7 +75,10 @@ typedef struct
     int *workers_status; // 0 - not working, 1 - working
 
     int num_keys_added;
+    int num_alerts_added;
+
     struct key_list_node *key_list;
+    struct alert_list_node *alert_list;
 
 } SharedMemory;
 
@@ -110,6 +123,12 @@ void print_key_list_to_user();
 void reset_key_list();
 
 bool check_msg(char *str);
+
+bool add_alert(struct alert_list_node **head, char *id, char *key, int min_value, int max_value);
+
+bool remove_alert(struct alert_list_node **head, char *id);
+
+void list_alerts(struct alert_list_node *head);
 
 // Variaveis globais
 extern int shmid;

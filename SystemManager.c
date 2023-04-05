@@ -12,6 +12,7 @@ sem_t *worker_status_sem;
 pthread_mutex_t internal_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct InternalQueueNode *internal_queue;
 struct key_list_node key_list_head;
+struct alert_list_node alert_list_head;
 
 void inicilize_shared_memory(Config config)
 {
@@ -20,12 +21,14 @@ void inicilize_shared_memory(Config config)
     shm->workers_status = malloc(sizeof(int) * config.n_workers);
     shm->key_list = NULL;
     shm->num_keys_added = 0;
+    shm->num_alerts_added = 0;
 
     for (int i = 0; i < config.n_workers; i++)
     {
         shm->workers_status[i] = 0;
     }
     shm->key_list = &key_list_head;
+    shm->alert_list = &alert_list_head;
     sem_post(mutex_shm);
 }
 
@@ -151,14 +154,44 @@ bool process_command_worker(const char *buffer, int worker_id)
     else if (strncmp(buffer, "add_alert", 9) == 0)
     {
         printf("Worker %d: %s \n", worker_id, "ADD_ALERT");
+
+        // add_alert id key min max
+        char *aux = malloc(strlen(buffer));
+        strcpy(aux, buffer);
+        char *token = strtok(aux, " ");
+        token = strtok(NULL, " ");
+        char *id = malloc(strlen(token));
+        strcpy(id, token);
+        token = strtok(NULL, " ");
+        char *key = malloc(strlen(token));
+        strcpy(key, token);
+        token = strtok(NULL, " ");
+        int min = atoi(token);
+        token = strtok(NULL, " ");
+        int max = atoi(token);
+
+        // add_alert AL1 ROOM1_TMP 10 25
+        // add_alert AL2 ROOM1_TMP 10 25
+        // add_alert AL3 ROOM2_TMP 11 26
+
+        add_alert(&shm->alert_list, id, key, min, max);
+        // list_alerts(shm->alert_list);
     }
     else if (strncmp(buffer, "remove_alert", 12) == 0)
     {
         printf("Worker %d: %s \n", worker_id, "REMOVE_ALERT");
+        char *aux = malloc(strlen(buffer));
+        strcpy(aux, buffer);
+        char *token = strtok(aux, " ");
+        token = strtok(NULL, " ");
+        char *id = malloc(strlen(token));
+        strcpy(id, token);
+        remove_alert(&shm->alert_list, id);
     }
     else if (strncmp(buffer, "list_alerts", 11) == 0)
     {
         printf("Worker %d: %s \n", worker_id, "LIST_ALERTS");
+        list_alerts(shm->alert_list);
     }
     else
     {
@@ -662,6 +695,14 @@ bool add_or_update_node(struct key_list_node **head, char *key, int value)
 
     sem_wait(mutex_shm);
 
+    // Check if the max number of keys has been reached
+    if (shm->num_keys_added >= shm->config_file.max_keys)
+    {
+        write_log("Max keys reached. Ignoring new key.");
+        sem_post(mutex_shm);
+        return false;
+    }
+
     struct key_list_node *curr = *head;
     struct key_list_node *prev = NULL;
     while (curr != NULL)
@@ -823,6 +864,102 @@ bool check_msg(char *str)
     }
 
     return true;
+}
+
+bool add_alert(struct alert_list_node **head, char *id, char *key, int min_value, int max_value)
+{
+    if (head == NULL || id == NULL || key == NULL)
+    {
+        return false;
+    }
+
+    sem_wait(mutex_shm);
+
+    struct alert_list_node *curr = *head;
+    while (curr != NULL)
+    {
+        if (strcmp(curr->key, key) == 0)
+        {
+            sem_post(mutex_shm);
+            // Já existe um alerta associado a esta key
+            return false;
+        }
+        curr = curr->next;
+    }
+
+    // Cria um novo nó de alerta e adiciona-o ao início da lista
+    struct alert_list_node *new_node = (struct alert_list_node *)malloc(sizeof(struct alert_list_node));
+    if (new_node == NULL)
+    {
+        sem_post(mutex_shm);
+        return false;
+    }
+    strcpy(new_node->id, id);
+    strcpy(new_node->key, key);
+    new_node->min_value = min_value;
+    new_node->max_value = max_value;
+    new_node->next = *head;
+    *head = new_node;
+
+    sem_post(mutex_shm);
+
+    return true;
+}
+
+bool remove_alert(struct alert_list_node **head, char *id)
+{
+    if (head == NULL || id == NULL || mutex_shm == NULL)
+    {
+        return false;
+    }
+
+    sem_wait(mutex_shm);
+
+    struct alert_list_node *curr = *head;
+    struct alert_list_node *prev = NULL;
+
+    while (curr != NULL)
+    {
+        if (strcmp(curr->id, id) == 0)
+        {
+            // Encontrou o alerta a remover
+            if (prev == NULL)
+            {
+                // O alerta a remover é o primeiro nó da lista
+                *head = curr->next;
+            }
+            else
+            {
+                // O alerta a remover não é o primeiro nó da lista
+                prev->next = curr->next;
+            }
+            free(curr);
+
+            sem_post(mutex_shm);
+            return true;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+
+    // Não encontrou o alerta a remover
+    sem_post(mutex_shm);
+    return false;
+}
+
+void list_alerts(struct alert_list_node *head)
+{
+    sem_wait(mutex_shm);
+
+    printf("%-4s %-15s %-4s %-4s\n", "ID", "Key", "MIN", "MAX");
+    printf("----------------------------------------\n");
+    while (head != NULL)
+    {
+        printf("%-4s %-15s %-4d %-4d\n", head->id, head->key, head->min_value, head->max_value);
+        head = head->next;
+    }
+
+    sem_post(mutex_shm);
 }
 
 int main()
