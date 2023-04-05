@@ -322,6 +322,13 @@ void print_key_list_to_user()
     printf("%-20s%-10s%-10s%-10s%-10s%-10s\n", "Key", "Last", "Min", "Max", "Avg", "Count");
     while (head != NULL)
     {
+        // if the key is null we skip it
+        if (head->key == NULL || head->key[0] == '\0' || head->key[0] == ' ')
+        {
+            head = head->next;
+            continue;
+        }
+
         printf("%-20s", head->key);
         printf("%-10d", head->last_value);
         printf("%-10d", head->min_value);
@@ -809,14 +816,18 @@ void handle_sigint(int sig)
     exit(0);
 }
 
-bool check_msg(char *str)
+bool check_msg(char *buffer)
 
 {
     // Verifica se a string é nula ou vazia
-    if (str == NULL || str[0] == '\0')
+    if (buffer == NULL || buffer[0] == '\0')
     {
         return false;
     }
+
+    // Copia a string para uma variável temporária
+    char str[100];
+    strcpy(str, buffer);
 
     char *token = strtok(str, "#");
     int count = 0;
