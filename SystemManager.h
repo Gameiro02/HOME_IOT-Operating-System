@@ -26,7 +26,7 @@
 #define WRITE 1
 #define READ 0
 
-#define QUEUE_SIZE 100
+#define QUEUE_SIZE 1024
 
 typedef struct
 {
@@ -56,6 +56,7 @@ struct queue
 struct key_list_node
 {
     char key[BUFFER_SIZE];
+    char sensor_id[BUFFER_SIZE];
     int last_value;
     int min_value;
     int max_value;
@@ -63,6 +64,14 @@ struct key_list_node
     int num_updates;
 
     struct key_list_node *next;
+};
+
+struct key_queue
+{
+    struct key_list_node data[QUEUE_SIZE];
+    int front;
+    int rear;
+    int size;
 };
 
 struct InternalQueueNode
@@ -85,7 +94,7 @@ typedef struct
     int num_keys_added;
     int num_alerts_added;
 
-    struct key_list_node *key_list;
+    struct key_queue key_list;
     struct queue alert_queue;
 
 } SharedMemory;
@@ -118,17 +127,7 @@ struct InternalQueueNode parse_params(const char *str);
 
 char *create_msg_to_worker(struct InternalQueueNode *node);
 
-void push_key_list(struct key_list_node **head, char *key, int value);
-
-bool add_or_update_node(struct key_list_node **head, char *key, int value);
-
-void print_key_list();
-
 bool process_command_worker(const char *buffer, int worker_id);
-
-void print_key_list_to_user();
-
-void reset_key_list();
 
 bool check_msg(char *str);
 
@@ -145,6 +144,15 @@ void enqueue(struct queue *q, struct alert_list_node data);
 void dequeue_by_id(struct queue *q, char *id);
 struct alert_list_node create_alert_list_node(char *id, char *key, int min_value, int max_value);
 void print_queue(struct queue *q);
+
+void init_key_queue(struct key_queue *q);
+int is_key_empty(struct key_queue *q);
+int is_key_full(struct key_queue *q);
+void enqueue_key(struct key_queue *q, char *key, int value);
+struct key_list_node dequeue_key(struct key_queue *q);
+void reset_keys(struct key_queue *q);
+void print_key_list(struct key_queue *q);
+void print_key_names(struct key_queue *q);
 
 // Variaveis globais
 extern int shmid;

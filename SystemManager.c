@@ -17,7 +17,6 @@ void inicilize_shared_memory(Config config)
     sem_wait(mutex_shm);
     shm->config_file = config;
     shm->workers_status = malloc(sizeof(int) * config.n_workers);
-    shm->key_list = NULL;
     shm->num_keys_added = 0;
     shm->num_alerts_added = 0;
 
@@ -97,14 +96,8 @@ void worker(int worker_id, int read_pipe, int write_pipe)
             // Parse the message: sensor_id#key#value witout segmentation fault
             struct InternalQueueNode aux = parse_params(buffer);
 
-            if (!add_or_update_node(&shm->key_list, aux.key, aux.value))
-            {
-                bzero(buffer, BUFFER_SIZE);
-                printf("Worker %d: %s \n", worker_id, "ERROR UPDATING KEY LIST");
-                sem_wait(mutex_shm);
-                shm->workers_status[worker_id] = 0;
-                sem_post(mutex_shm);
-            }
+            // Add the message to the internal queue
+            enqueue_key(&shm->key_list, aux.key, aux.value);
 
             printf("Worker %d: %s \n", worker_id, "DONE1");
 
@@ -118,41 +111,29 @@ void worker(int worker_id, int read_pipe, int write_pipe)
     }
 }
 
-void print_only_the_keys()
-{
-    sem_wait(mutex_shm);
-    struct key_list_node *aux = shm->key_list;
-    while (aux != NULL)
-    {
-        // if the key is null we skip it
-        if (aux->key == NULL || aux->key[0] == '\0' || aux->key[0] == ' ')
-        {
-            aux = aux->next;
-            continue;
-        }
-        printf("%s\n", aux->key);
-        aux = aux->next;
-    }
-    sem_post(mutex_shm);
-}
-
 bool process_command_worker(const char *buffer, int worker_id)
 {
     if (strncmp(buffer, "stats", 5) == 0)
     {
         printf("Showing stats\n");
-        print_key_list_to_user();
+        sem_wait(mutex_shm);
+        print_key_list(&shm->key_list);
+        sem_post(mutex_shm);
     }
     else if (strncmp(buffer, "reset", 5) == 0)
     {
         printf("Worker %d: %s \n", worker_id, "RESET");
-        reset_key_list();
+        sem_wait(mutex_shm);
+        reset_keys(&shm->key_list);
+        sem_post(mutex_shm);
         printf("OK\n");
     }
     else if (strncmp(buffer, "sensors", 7) == 0)
     {
         printf("Worker %d: %s \n", worker_id, "SENSORS");
-        print_only_the_keys();
+        sem_wait(mutex_shm);
+        print_key_names(&shm->key_list);
+        sem_post(mutex_shm);
     }
     else if (strncmp(buffer, "add_alert", 9) == 0)
     {
@@ -178,7 +159,9 @@ bool process_command_worker(const char *buffer, int worker_id)
         // add_alert AL3 ROOM2_TMP 11 26
 
         struct alert_list_node alert = create_alert_list_node(id, key, min, max);
+        sem_wait(mutex_shm);
         enqueue(&shm->alert_queue, alert);
+        sem_post(mutex_shm);
     }
     else if (strncmp(buffer, "remove_alert", 12) == 0)
     {
@@ -189,12 +172,17 @@ bool process_command_worker(const char *buffer, int worker_id)
         token = strtok(NULL, " ");
         char *id = malloc(strlen(token));
         strcpy(id, token);
+
+        sem_wait(mutex_shm);
         dequeue_by_id(&shm->alert_queue, id);
+        sem_post(mutex_shm);
     }
     else if (strncmp(buffer, "list_alerts", 11) == 0)
     {
         printf("Worker %d: %s \n", worker_id, "LIST_ALERTS");
+        sem_wait(mutex_shm);
         print_queue(&shm->alert_queue);
+        sem_post(mutex_shm);
     }
     else
     {
@@ -308,39 +296,6 @@ void alerts_watcher()
     sem_wait(log_sem);
     write_log("PROCESS ALERTS_WATCHER CREATED");
     sem_post(log_sem);
-}
-
-void print_key_list_to_user()
-{
-    sem_wait(mutex_shm);
-
-    if (shm->key_list == NULL)
-    {
-        printf("No keys to show\n");
-        sem_post(mutex_shm);
-        return;
-    }
-
-    struct key_list_node *head = shm->key_list;
-    printf("%-20s%-10s%-10s%-10s%-10s%-10s\n", "Key", "Last", "Min", "Max", "Avg", "Count");
-    while (head != NULL)
-    {
-        // if the key is null we skip it
-        if (head->key == NULL || head->key[0] == '\0' || head->key[0] == ' ')
-        {
-            head = head->next;
-            continue;
-        }
-
-        printf("%-20s", head->key);
-        printf("%-10d", head->last_value);
-        printf("%-10d", head->min_value);
-        printf("%-10d", head->max_value);
-        printf("%-10.2f", head->avg_value);
-        printf("%-10d\n", head->num_updates);
-        head = head->next;
-    }
-    sem_post(mutex_shm);
 }
 
 bool is_user_command(char *msg)
@@ -459,22 +414,6 @@ void *dispatcher_routine(void *arg)
     }
 
     pthread_exit(NULL);
-}
-
-void reset_key_list()
-{
-    sem_wait(mutex_shm);
-    struct key_list_node *head = shm->key_list;
-    while (head != NULL)
-    {
-        head->last_value = 0;
-        head->min_value = 0;
-        head->max_value = 0;
-        head->avg_value = 0;
-        head->num_updates = 0;
-        head = head->next;
-    }
-    sem_post(mutex_shm);
 }
 
 char *create_msg_to_worker(struct InternalQueueNode *node)
@@ -631,71 +570,6 @@ void print_internal_queue(struct InternalQueueNode *head)
     pthread_mutex_unlock(&internal_queue_mutex);
 }
 
-void push_key_list(struct key_list_node **head, char *key, int value)
-{
-    struct key_list_node *newNode = (struct key_list_node *)malloc(sizeof(struct key_list_node));
-
-    sem_wait(mutex_shm);
-    if (shm->num_keys_added >= shm->config_file.max_keys)
-    {
-        write_log("Max keys reached. Ignoring new key.");
-        sem_post(mutex_shm);
-        return;
-    }
-
-    if (newNode == NULL)
-    {
-        sem_post(mutex_shm);
-        return;
-    }
-
-    if (key != NULL)
-    {
-        strcpy(newNode->key, key);
-    }
-    else
-    {
-        strcpy(newNode->key, "null");
-    }
-
-    newNode->last_value = value;
-    newNode->min_value = value;
-    newNode->max_value = value;
-    newNode->avg_value = value;
-    newNode->num_updates = 1;
-    newNode->next = NULL;
-
-    if (*head == NULL)
-    {
-        *head = newNode;
-    }
-    else
-    {
-        struct key_list_node *current = *head;
-        struct key_list_node *previous = NULL;
-
-        while (current != NULL && strcmp(current->key, key) != 0)
-        {
-            previous = current;
-            current = current->next;
-        }
-
-        if (previous == NULL)
-        {
-            newNode->next = *head;
-            *head = newNode;
-        }
-        else
-        {
-            previous->next = newNode;
-            newNode->next = current;
-        }
-    }
-    // print_key_list(*head);
-    shm->num_keys_added++;
-    sem_post(mutex_shm);
-}
-
 bool add_or_update_node(struct key_list_node **head, char *key, int value)
 {
     if (head == NULL || key == NULL || mutex_shm == NULL)
@@ -764,35 +638,6 @@ bool add_or_update_node(struct key_list_node **head, char *key, int value)
 
     sem_post(mutex_shm);
     return true;
-}
-
-void print_key_list()
-{
-    sem_wait(mutex_shm);
-    struct key_list_node *head = shm->key_list;
-
-    printf("========== PRINT KEY LIST ========== \n");
-    while (head != NULL)
-    {
-        printf("Key: ");
-        if (head->key != NULL)
-        {
-            printf("%s\n", head->key);
-        }
-        else
-        {
-            printf("NULL\n");
-        }
-        printf("Last Value: %d\n", head->last_value);
-        printf("Avg Value: %f\n", head->avg_value);
-        printf("Num Updates: %d\n", head->num_updates);
-        printf("Max Value: %d\n", head->max_value);
-        printf("Min Value: %d\n", head->min_value);
-        printf("------------------------\n");
-        head = head->next;
-    }
-    printf("================================\n");
-    sem_post(mutex_shm);
 }
 
 void handle_sigint(int sig)
@@ -1101,6 +946,128 @@ void print_queue(struct queue *q)
             }
         }
         printf("%-10s %-15s %-10d %-10d\n", q->data[i].id, q->data[i].key, q->data[i].min_value, q->data[i].max_value);
+    }
+}
+
+int is_key_empty(struct key_queue *q)
+{
+    return (q->size == 0);
+}
+
+int is_key_full(struct key_queue *q)
+{
+    return (q->size == QUEUE_SIZE);
+}
+
+void enqueue_key(struct key_queue *q, char *key, int value)
+{
+    // Verifica se a chave já existe na fila
+    struct key_list_node *curr = q->data;
+    for (int i = 0; i < q->size; i++)
+    {
+        if (strcmp(curr->key, key) == 0)
+        {
+            // Se a chave já existe, atualiza os dados correspondentes
+            if (value < curr->min_value)
+            {
+                curr->min_value = value;
+            }
+            if (value > curr->max_value)
+            {
+                curr->max_value = value;
+            }
+            curr->avg_value = (curr->avg_value * curr->num_updates + value) / (curr->num_updates + 1);
+            curr->last_value = value;
+            curr->num_updates++;
+            return;
+        }
+        curr++;
+    }
+
+    // Se a chave não existe ainda, cria um novo nó de chave e adiciona à fila
+    if (is_key_full(q))
+    {
+        printf("Queue is full!\n");
+        exit(1);
+    }
+    else
+    {
+        q->rear++;
+        if (q->rear == QUEUE_SIZE)
+        {
+            q->rear = 0;
+        }
+        strcpy(q->data[q->rear].key, key);
+        q->data[q->rear].last_value = value;
+        q->data[q->rear].min_value = value;
+        q->data[q->rear].max_value = value;
+        q->data[q->rear].avg_value = value;
+        q->data[q->rear].num_updates = 1;
+        q->data[q->rear].next = NULL;
+        q->size++;
+    }
+}
+struct key_list_node dequeue_key(struct key_queue *q)
+{
+    if (is_key_empty(q))
+    {
+        printf("Queue is empty!\n");
+        exit(1);
+    }
+    else
+    {
+        struct key_list_node temp_data = q->data[q->front];
+        q->front++;
+        if (q->front == QUEUE_SIZE)
+        {
+            q->front = 0;
+        }
+        q->size--;
+        return temp_data;
+    }
+}
+
+void reset_keys(struct key_queue *q)
+{
+    int i;
+    for (i = q->front; i != q->rear + 1; i = (i + 1) % QUEUE_SIZE)
+    {
+        q->data[i].last_value = 0;
+        q->data[i].min_value = 0;
+        q->data[i].max_value = 0;
+        q->data[i].avg_value = 0;
+        q->data[i].num_updates = 0;
+    }
+}
+
+void print_key_list(struct key_queue *q)
+{
+    printf("Key\tLast\tMin\tMax\tAvg\tCount\n");
+
+    // Percorre a fila de chaves e imprime as informações no formato solicitado
+    struct key_list_node *curr = q->data;
+    for (int i = 0; i < q->size; i++)
+    {
+        printf("%s\t%d\t%d\t%d\t%.2f\t%d\n",
+               curr->key,        // chave
+               curr->last_value, // último valor
+               curr->min_value,  // valor mínimo
+               curr->max_value,  // valor máximo
+               curr->avg_value,  // valor médio
+               curr->num_updates // número de atualizações
+        );
+        curr++;
+    }
+}
+
+void print_key_names(struct key_queue *q)
+{
+    // Percorre a fila de chaves e imprime os nomes das chaves em linhas separadas
+    struct key_list_node *curr = q->data;
+    for (int i = 0; i < q->size; i++)
+    {
+        printf("%s\n", curr->key);
+        curr++;
     }
 }
 
