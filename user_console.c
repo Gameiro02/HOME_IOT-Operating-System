@@ -1,8 +1,21 @@
 #include "user_console_functions.h"
+#include <sys/msg.h>
+#include <sys/ipc.h>
 
 int main(int argc, char *argv[])
 {
     int console_identifier;
+    key_t key;
+    message buffer;
+    key = ftok(".", QUEUE_KEY);
+
+    // Open the message queue
+    int queue_id = msgget(key, 0660);
+    if (queue_id == -1)
+    {
+        perror("Erro ao obter o ID da fila de mensagens");
+        exit(EXIT_FAILURE);
+    }
 
     printf(" ======================================================MENU=======================================================\n"
            "| COMMAND                                DESCRIPTION                                                              |\n"
@@ -26,10 +39,17 @@ int main(int argc, char *argv[])
 
     while (1)
     {
-        if (read_command(console_identifier) == false)
-        {
-            continue;
-        }
+
+        read_command(console_identifier);
+
+        // Esperar por uma mensagem da fila de mensagens
+        // if (msgrcv(queue_id, &buffer, sizeof(buffer.message), console_identifier, 0) == -1)
+        // {
+        //     perror("Erro ao ler da fila de mensagens");
+        //     exit(EXIT_FAILURE);
+        // }
+
+        printf("Mensagem recebida: %s\n", buffer.message);
     }
 
     return 0;

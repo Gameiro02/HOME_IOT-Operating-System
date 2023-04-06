@@ -9,6 +9,8 @@ sem_t *log_sem;
 sem_t *key_list_empty_sem;
 sem_t *worker_status_sem;
 
+int msg_queue_id;
+
 pthread_mutex_t internal_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct InternalQueueNode *internal_queue;
 
@@ -126,7 +128,10 @@ bool process_command_worker(const char *buffer, int worker_id)
         sem_wait(mutex_shm);
         reset_keys(&shm->key_list);
         sem_post(mutex_shm);
-        printf("OK\n");
+
+        // write to the message queue
+
+        printf("Message sent to the message queue\n");
     }
     else if (strncmp(buffer, "sensors", 7) == 0)
     {
@@ -661,6 +666,9 @@ void handle_sigint(int sig)
     unlink(CONSOLE_PIPE);
     unlink(SENSOR_PIPE);
 
+    // Remove a message queue at the end of the program
+    msgctl(msg_queue_id, IPC_RMID, 0);
+
     exit(0);
 }
 
@@ -730,6 +738,15 @@ int main()
     clear_log();
     Config config = read_config_file("config.txt");
     signal(SIGINT, handle_sigint);
+
+    // Create the Message Queue
+    key_t key = ftok(".", QUEUE_KEY);
+    msg_queue_id = msgget(key, IPC_CREAT | 0777);
+    if (msg_queue_id < 0)
+    {
+        perror("msgget: ");
+        exit(1);
+    }
 
     // Create shared memory
     int shmid = shmget(IPC_PRIVATE, sizeof(SharedMemory), IPC_CREAT | 0777);

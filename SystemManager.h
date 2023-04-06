@@ -18,6 +18,12 @@
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <semaphore.h>
+#include <sys/msg.h>
+#include <sys/ipc.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+
 #define BUFFER_SIZE 256
 
 #define CONSOLE_PIPE "console_pipe"
@@ -27,6 +33,8 @@
 #define READ 0
 
 #define QUEUE_SIZE 1024
+
+#define QUEUE_KEY 1234
 
 typedef struct
 {
@@ -98,6 +106,12 @@ typedef struct
     struct queue alert_queue;
 
 } SharedMemory;
+
+typedef struct
+{
+    long type;
+    char message[BUFFER_SIZE];
+} message;
 
 Config read_config_file(char *filename);
 
