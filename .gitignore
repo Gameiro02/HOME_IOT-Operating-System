@@ -59,3 +59,5 @@ sensor_pipe
 #Log files
 log.txt
 log.log
+log.txt.*
+*.log
