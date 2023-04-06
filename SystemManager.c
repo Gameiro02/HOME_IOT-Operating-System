@@ -171,6 +171,7 @@ bool process_command_worker(const char *buffer, int worker_id)
 
         // add_alert AL1 ROOM1_TMP 10 25
         // add_alert AL2 ROOM1_TMP 10 25
+        // remove_alert AL1
         // add_alert AL3 ROOM2_TMP 11 26
 
         struct alert_list_node alert = create_alert_list_node(id, key, min, max);
@@ -1039,7 +1040,7 @@ void enqueue_key(struct key_queue *q, char *key, int value)
         curr++;
     }
 
-    // Se a chave não existe ainda, cria um novo nó de chave e adiciona à fila
+    // Se a chave não existe ainda, cria um novo nó de chave e adiciona à frente da fila
     if (is_key_full(q))
     {
         printf("Queue is full!\n");
@@ -1047,18 +1048,17 @@ void enqueue_key(struct key_queue *q, char *key, int value)
     }
     else
     {
-        q->rear++;
-        if (q->rear == QUEUE_SIZE)
+        q->front--;
+        if (q->front < 0)
         {
-            q->rear = 0;
+            q->front = QUEUE_SIZE - 1;
         }
-        strcpy(q->data[q->rear].key, key);
-        q->data[q->rear].last_value = value;
-        q->data[q->rear].min_value = value;
-        q->data[q->rear].max_value = value;
-        q->data[q->rear].avg_value = value;
-        q->data[q->rear].num_updates = 1;
-        q->data[q->rear].next = NULL;
+        strcpy(q->data[q->front].key, key);
+        q->data[q->front].last_value = value;
+        q->data[q->front].min_value = value;
+        q->data[q->front].max_value = value;
+        q->data[q->front].avg_value = value;
+        q->data[q->front].num_updates = 1;
         q->size++;
     }
 }
@@ -1105,32 +1105,45 @@ bool reset_keys(struct key_queue *q)
 
 void print_key_list(struct key_queue *q)
 {
-    printf("Key\tLast\tMin\tMax\tAvg\tCount\n");
+    printf("%-10s %-10s %-10s %-10s %-10s %-10s\n", "Key", "Last", "Min", "Max", "Avg", "Count");
 
-    // Percorre a fila de chaves e imprime as informações no formato solicitado
-    struct key_list_node *curr = q->data;
+    if (q->size == 0)
+    {
+        printf("Queue is empty.\n");
+        return;
+    }
+
+    struct key_list_node *curr = &q->data[q->front];
     for (int i = 0; i < q->size; i++)
     {
-        printf("%s\t%d\t%d\t%d\t%.2f\t%d\n",
-               curr->key,        // chave
-               curr->last_value, // último valor
-               curr->min_value,  // valor mínimo
-               curr->max_value,  // valor máximo
-               curr->avg_value,  // valor médio
-               curr->num_updates // número de atualizações
-        );
+        printf("%-10s %-10d %-10d %-10d %-10.2f %-10d\n", curr->key, curr->last_value, curr->min_value, curr->max_value, curr->avg_value, curr->num_updates);
         curr++;
+        if (curr == &q->data[QUEUE_SIZE])
+        {
+            curr = q->data;
+        }
     }
 }
 
 void print_key_names(struct key_queue *q)
 {
-    // Percorre a fila de chaves e imprime os nomes das chaves em linhas separadas
-    struct key_list_node *curr = q->data;
+    printf("Keys in queue:\n");
+
+    if (q->size == 0)
+    {
+        printf("Queue is empty.\n");
+        return;
+    }
+
+    struct key_list_node *curr = &q->data[q->front];
     for (int i = 0; i < q->size; i++)
     {
         printf("%s\n", curr->key);
         curr++;
+        if (curr == &q->data[QUEUE_SIZE])
+        {
+            curr = q->data;
+        }
     }
 }
 
