@@ -27,6 +27,7 @@ void inicilize_shared_memory(Config config)
         shm->workers_status[i] = 0;
     }
     init_queue(&shm->alert_queue);
+    init_key_queue(&shm->key_list);
     sem_post(mutex_shm);
 }
 
@@ -924,7 +925,7 @@ bool enqueue(struct queue *q, struct alert_list_node data)
     else
     {
         q->rear++;
-        if (q->rear == QUEUE_SIZE)
+        if (q->rear == shm->config_file.max_alerts)
         {
             q->rear = 0;
         }
@@ -996,7 +997,7 @@ void print_queue(struct queue *q)
         {
             printf("%-10s %-15s %-10d %-10d\n", q->data[i].id, q->data[i].key, q->data[i].min_value, q->data[i].max_value);
             i++;
-            if (i == QUEUE_SIZE)
+            if (i == shm->config_file.max_alerts)
             {
                 i = 0;
             }
@@ -1012,13 +1013,13 @@ int is_key_empty(struct key_queue *q)
 
 int is_key_full(struct key_queue *q)
 {
-    return (q->size == QUEUE_SIZE);
+    return (q->size == shm->config_file.max_keys);
 }
 
 void enqueue_key(struct key_queue *q, char *key, int value)
 {
     // Verifica se a chave já existe na fila
-    struct key_list_node *curr = q->data;
+    struct key_list_node *curr = q->data + q->front;
     for (int i = 0; i < q->size; i++)
     {
         if (strcmp(curr->key, key) == 0)
@@ -1044,14 +1045,14 @@ void enqueue_key(struct key_queue *q, char *key, int value)
     if (is_key_full(q))
     {
         printf("Queue is full!\n");
-        exit(1);
+        return;
     }
     else
     {
         q->front--;
         if (q->front < 0)
         {
-            q->front = QUEUE_SIZE - 1;
+            q->front = shm->config_file.max_keys - 1;
         }
         strcpy(q->data[q->front].key, key);
         q->data[q->front].last_value = value;
@@ -1073,7 +1074,7 @@ struct key_list_node dequeue_key(struct key_queue *q)
     {
         struct key_list_node temp_data = q->data[q->front];
         q->front++;
-        if (q->front == QUEUE_SIZE)
+        if (q->front == shm->config_file.max_keys)
         {
             q->front = 0;
         }
@@ -1091,7 +1092,7 @@ bool reset_keys(struct key_queue *q)
     }
 
     int i;
-    for (i = q->front; i != q->rear + 1; i = (i + 1) % QUEUE_SIZE)
+    for (i = q->front; i != q->rear + 1; i = (i + 1) % shm->config_file.max_keys)
     {
         q->data[i].last_value = 0;
         q->data[i].min_value = 0;
@@ -1118,7 +1119,7 @@ void print_key_list(struct key_queue *q)
     {
         printf("%-10s %-10d %-10d %-10d %-10.2f %-10d\n", curr->key, curr->last_value, curr->min_value, curr->max_value, curr->avg_value, curr->num_updates);
         curr++;
-        if (curr == &q->data[QUEUE_SIZE])
+        if (curr == &q->data[shm->config_file.max_keys])
         {
             curr = q->data;
         }
@@ -1140,11 +1141,18 @@ void print_key_names(struct key_queue *q)
     {
         printf("%s\n", curr->key);
         curr++;
-        if (curr == &q->data[QUEUE_SIZE])
+        if (curr == &q->data[shm->config_file.max_keys])
         {
             curr = q->data;
         }
     }
+}
+
+void init_key_queue(struct key_queue *q)
+{
+    q->front = -1;
+    q->rear = -1;
+    q->size = 0;
 }
 
 // Run: gcc -o SystemManager SystemManager.c SystemManagerFuncs.c SystemManager.h log.c log.h && ./SystemManager
