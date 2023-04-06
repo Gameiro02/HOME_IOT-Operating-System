@@ -2,15 +2,39 @@
 #include <sys/msg.h>
 #include <sys/ipc.h>
 
+int queue_id;
+
+void process_reader()
+{
+    message buffer;
+    while (1)
+    {
+        // Esperar por uma mensagem da fila de mensagens
+        if (msgrcv(queue_id, &buffer, sizeof(buffer), WORKER_TO_CONSOLE, 0) == -1)
+        {
+            perror("Erro ao ler da fila de mensagens");
+            exit(EXIT_FAILURE);
+        }
+
+        printf("Mensagem recebida: %s\n", buffer.message);
+
+        // if we receive a message saying "terminate", we terminate the process
+        if (strcmp(buffer.message, "terminate") == 0)
+        {
+            printf("Terminating console...\n");
+            exit(EXIT_SUCCESS);
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
     int console_identifier;
     key_t key;
-    message buffer;
     key = ftok(".", QUEUE_KEY);
 
     // Open the message queue
-    int queue_id = msgget(key, 0660);
+    queue_id = msgget(key, 0660);
     if (queue_id == -1)
     {
         perror("Erro ao obter o ID da fila de mensagens");
@@ -37,19 +61,16 @@ int main(int argc, char *argv[])
 
     console_identifier = atoi(argv[1]);
 
+    // Create a new process to read the commands from the message queue
+    if (fork() == 0)
+    {
+        process_reader();
+        exit(EXIT_SUCCESS);
+    }
+
     while (1)
     {
-
         read_command(console_identifier);
-
-        // Esperar por uma mensagem da fila de mensagens
-        // if (msgrcv(queue_id, &buffer, sizeof(buffer.message), console_identifier, 0) == -1)
-        // {
-        //     perror("Erro ao ler da fila de mensagens");
-        //     exit(EXIT_FAILURE);
-        // }
-
-        printf("Mensagem recebida: %s\n", buffer.message);
     }
 
     return 0;

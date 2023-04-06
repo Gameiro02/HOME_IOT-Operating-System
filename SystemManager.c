@@ -126,12 +126,22 @@ bool process_command_worker(const char *buffer, int worker_id)
     {
         printf("Worker %d: %s \n", worker_id, "RESET");
         sem_wait(mutex_shm);
-        reset_keys(&shm->key_list);
-        sem_post(mutex_shm);
-
-        // write to the message queue
-
-        printf("Message sent to the message queue\n");
+        if (reset_keys(&shm->key_list) == false)
+        {
+            sem_post(mutex_shm);
+            message msg;
+            msg.type = WORKER_TO_CONSOLE;
+            strcpy(msg.message, "ERROR");
+            msgsnd(msg_queue_id, &msg, sizeof(msg), 0);
+        }
+        else
+        {
+            sem_post(mutex_shm);
+            message msg;
+            msg.type = WORKER_TO_CONSOLE;
+            strcpy(msg.message, "OK");
+            msgsnd(msg_queue_id, &msg, sizeof(msg), 0);
+        }
     }
     else if (strncmp(buffer, "sensors", 7) == 0)
     {
@@ -165,8 +175,22 @@ bool process_command_worker(const char *buffer, int worker_id)
 
         struct alert_list_node alert = create_alert_list_node(id, key, min, max);
         sem_wait(mutex_shm);
-        enqueue(&shm->alert_queue, alert);
-        sem_post(mutex_shm);
+        if (enqueue(&shm->alert_queue, alert) == false)
+        {
+            sem_post(mutex_shm);
+            message msg;
+            msg.type = WORKER_TO_CONSOLE;
+            strcpy(msg.message, "ERROR");
+            msgsnd(msg_queue_id, &msg, sizeof(msg), 0);
+        }
+        else
+        {
+            sem_post(mutex_shm);
+            message msg;
+            msg.type = WORKER_TO_CONSOLE;
+            strcpy(msg.message, "OK");
+            msgsnd(msg_queue_id, &msg, sizeof(msg), 0);
+        }
     }
     else if (strncmp(buffer, "remove_alert", 12) == 0)
     {
@@ -179,8 +203,22 @@ bool process_command_worker(const char *buffer, int worker_id)
         strcpy(id, token);
 
         sem_wait(mutex_shm);
-        dequeue_by_id(&shm->alert_queue, id);
-        sem_post(mutex_shm);
+        if (dequeue_by_id(&shm->alert_queue, id) == false)
+        {
+            sem_post(mutex_shm);
+            message msg;
+            msg.type = WORKER_TO_CONSOLE;
+            strcpy(msg.message, "ERROR");
+            msgsnd(msg_queue_id, &msg, sizeof(msg), 0);
+        }
+        else
+        {
+            sem_post(mutex_shm);
+            message msg;
+            msg.type = WORKER_TO_CONSOLE;
+            strcpy(msg.message, "OK");
+            msgsnd(msg_queue_id, &msg, sizeof(msg), 0);
+        }
     }
     else if (strncmp(buffer, "list_alerts", 11) == 0)
     {
@@ -839,7 +877,6 @@ int main()
         exit(0);
     }
 
-    // Create the 2 threads: console_reader and sensor_reader
     pthread_t console_reader, sensor_reader, dispatcher;
 
     pthread_create(&sensor_reader, NULL, sensor_reader_routine, NULL);
@@ -873,15 +910,15 @@ int is_empty(struct queue *q)
 
 int is_full(struct queue *q)
 {
-    return (q->size == QUEUE_SIZE);
+    return (q->size == shm->config_file.max_alerts);
 }
 
-void enqueue(struct queue *q, struct alert_list_node data)
+bool enqueue(struct queue *q, struct alert_list_node data)
 {
     if (is_full(q))
     {
         printf("Queue is full!\n");
-        exit(1);
+        return false;
     }
     else
     {
@@ -892,15 +929,16 @@ void enqueue(struct queue *q, struct alert_list_node data)
         }
         q->data[q->rear] = data;
         q->size++;
+        return true;
     }
 }
 
-void dequeue_by_id(struct queue *q, char *id)
+bool dequeue_by_id(struct queue *q, char *id)
 {
     if (is_empty(q))
     {
         printf("Queue is empty!\n");
-        exit(1);
+        return false;
     }
     else
     {
@@ -917,8 +955,7 @@ void dequeue_by_id(struct queue *q, char *id)
         }
         if (found == 0)
         {
-            printf("Node with id %s not found!\n", id);
-            exit(1);
+            return false;
         }
         else
         {
@@ -931,6 +968,7 @@ void dequeue_by_id(struct queue *q, char *id)
             q->size--;
         }
     }
+    return true;
 }
 
 struct alert_list_node create_alert_list_node(char *id, char *key, int min_value, int max_value)
@@ -1044,8 +1082,14 @@ struct key_list_node dequeue_key(struct key_queue *q)
     }
 }
 
-void reset_keys(struct key_queue *q)
+bool reset_keys(struct key_queue *q)
 {
+    if (q->front == -1 && q->rear == -1 || q->size == 0)
+    {
+        // Fila vazia
+        return false;
+    }
+
     int i;
     for (i = q->front; i != q->rear + 1; i = (i + 1) % QUEUE_SIZE)
     {
@@ -1055,6 +1099,8 @@ void reset_keys(struct key_queue *q)
         q->data[i].avg_value = 0;
         q->data[i].num_updates = 0;
     }
+
+    return true;
 }
 
 void print_key_list(struct key_queue *q)

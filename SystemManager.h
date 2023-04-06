@@ -24,6 +24,8 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 
+#define WORKER_TO_CONSOLE 2
+
 #define BUFFER_SIZE 256
 
 #define CONSOLE_PIPE "console_pipe"
@@ -154,8 +156,8 @@ void list_alerts(struct alert_list_node *head);
 void init_queue(struct queue *q);
 int is_empty(struct queue *q);
 int is_full(struct queue *q);
-void enqueue(struct queue *q, struct alert_list_node data);
-void dequeue_by_id(struct queue *q, char *id);
+bool enqueue(struct queue *q, struct alert_list_node data);
+bool dequeue_by_id(struct queue *q, char *id);
 struct alert_list_node create_alert_list_node(char *id, char *key, int min_value, int max_value);
 void print_queue(struct queue *q);
 
@@ -164,7 +166,7 @@ int is_key_empty(struct key_queue *q);
 int is_key_full(struct key_queue *q);
 void enqueue_key(struct key_queue *q, char *key, int value);
 struct key_list_node dequeue_key(struct key_queue *q);
-void reset_keys(struct key_queue *q);
+bool reset_keys(struct key_queue *q);
 void print_key_list(struct key_queue *q);
 void print_key_names(struct key_queue *q);
 
