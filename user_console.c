@@ -27,6 +27,13 @@ void process_reader()
     }
 }
 
+// Signal handler for SIGINT
+void handle_sigint()
+{
+    printf("Received SIGINT signal. Exiting...\n");
+    exit(0);
+}
+
 int main(int argc, char *argv[])
 {
     int console_identifier;
@@ -60,6 +67,8 @@ int main(int argc, char *argv[])
     }
 
     console_identifier = atoi(argv[1]);
+
+    signal(SIGINT, handle_sigint);
 
     // Create a new process to read the commands from the message queue
     if (fork() == 0)

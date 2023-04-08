@@ -5,10 +5,9 @@
 #include "user_console_functions.h"
 #include "log.h"
 
-bool read_command(int console_identifier)
+void read_command()
 {
     char command[MAX_COMMAND_LENGTH];
-    char id[MAX_ID_LENGTH];
 
     // Read command without the newline character
     fgets(command, MAX_COMMAND_LENGTH, stdin);
