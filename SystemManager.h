@@ -73,8 +73,6 @@ struct key_list_node
     int max_value;
     double avg_value;
     int num_updates;
-
-    struct key_list_node *next;
 };
 
 struct key_queue
