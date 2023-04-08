@@ -1,23 +1,28 @@
 CC = gcc
-FLAGS = -Wall -Wextra -Werror
-PROG = main
-OBJS = main.o
+FLAGS = -Wall -Wextra
 
-all: $(PROG)
+all: SystemManager sensor user_console
 
 clean: 
-	rm $(OBJS) *~ $(PROG)
-	rm console_pipe sensor_pipe
+	rm -f *.o *~ SystemManager sensor user_console console_pipe sensor_pipe
 
-$(PROG): $(OBJS)
-	$(CC) $(FLAGS) $(OBJS) -lm -o $@
+SystemManager: SystemManager.o SystemManagerFuncs.o log.o
+	$(CC) $(FLAGS) -lm $^ -o $@
+
+sensor: sensor.o
+	$(CC) $(FLAGS) $^ -o $@
+
+user_console: user_console.o user_console_functions.o
+	$(CC) $(FLAGS) $^ -o $@
 
 .c.o:
-	$(CC) $(FLAGS) $< -c -o $@
-
+	$(CC) $(FLAGS) -c $< -o $@
 
 ############################################
 
-main.o: main.c
-
-main: main.o
+SystemManager.o: SystemManager.c SystemManager.h
+SystemManagerFuncs.o: SystemManagerFuncs.c SystemManager.h
+log.o: log.c log.h
+sensor.o: sensor.c
+user_console.o: user_console.c user_console_functions.h
+user_console_functions.o: user_console_functions.c user_console_functions.h

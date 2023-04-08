@@ -22,13 +22,13 @@ struct sensor
 
 struct sensor s1;
 
-void handle_sigint(int sig)
+void handle_sigint()
 {
     printf("Received SIGINT signal. Exiting...\n");
     exit(0);
 }
 
-void handle_sigtstp(int sig)
+void handle_sigtstp()
 {
     printf("Number of messages sent: %d\n", s1.num_messages);
 }

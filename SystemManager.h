@@ -111,24 +111,23 @@ typedef struct
 typedef struct
 {
     long type;
-    char message[BUFFER_SIZE];
+    char message[4096];
 } message;
 
 Config read_config_file(char *filename);
-
+bool is_user_command(char *msg);
 void print_config(Config config);
-
+void handle_sigint();
 void inicilize_shared_memory(Config config);
 
 void print_shared_memory();
 
 void create_named_pipes();
 
-void worker();
+void worker(int worker_id, int read_pipe);
+void *consol_reader_routine();
 
-void *consol_reader_routine(void *arg);
-
-void *sensor_reader_routine(void *arg);
+void *sensor_reader_routine();
 
 void alerts_watcher();
 
@@ -176,9 +175,8 @@ extern sem_t *mutex_shm;
 extern sem_t *log_sem;
 extern sem_t *key_list_empty_sem;
 extern sem_t *worker_status_sem;
-extern pthread_mutex_t internal_queue_mutex;
+extern int msg_queue_id;
 extern struct InternalQueueNode *internal_queue;
-extern struct key_list_node key_list_head;
-extern struct alert_list_node alert_list_head;
+extern pthread_mutex_t internal_queue_mutex;
 
 #endif
