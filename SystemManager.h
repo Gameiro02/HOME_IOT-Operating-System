@@ -25,8 +25,9 @@
 #include <sys/msg.h>
 
 #define WORKER_TO_CONSOLE 2
+#define ALERTS_TO_CONSOLE 3
 
-#define BUFFER_SIZE 256
+#define BUFFER_SIZE 1024
 
 #define CONSOLE_PIPE "console_pipe"
 #define SENSOR_PIPE "sensor_pipe"
