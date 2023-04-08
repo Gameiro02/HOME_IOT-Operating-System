@@ -171,7 +171,7 @@ bool process_command_worker(const char *buffer, int worker_id)
         int max = atoi(token);
 
         // add_alert AL1 ROOM1_TMP 10 25
-        // add_alert AL2 ROOM1_TMP 10 25
+        // add_alert AL1 ROOM1_TMP 11 24
         // remove_alert AL1
         // add_alert AL3 ROOM2_TMP 11 26
 
@@ -924,6 +924,16 @@ bool enqueue(struct queue *q, struct alert_list_node data)
     }
     else
     {
+        // check if key already exists in queue
+        for (int i = q->front; i <= q->rear; i++)
+        {
+            if (strcmp(q->data[i].key, data.key) == 0)
+            {
+                printf("Key already exists in queue!\n");
+                return false;
+            }
+        }
+
         q->rear++;
         if (q->rear == shm->config_file.max_alerts)
         {
