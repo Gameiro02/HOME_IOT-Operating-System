@@ -14,6 +14,8 @@ int msg_queue_id;
 pthread_mutex_t internal_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct InternalQueueNode *internal_queue;
 
+bool check_alerts = false;
+
 void inicilize_shared_memory(Config config)
 {
     sem_wait(mutex_shm);
@@ -108,6 +110,7 @@ void worker(int worker_id, int read_pipe, int write_pipe)
             shm->workers_status[worker_id] = 0;
             sem_post(mutex_shm);
 
+            sem_post(key_list_empty_sem);
             printf("Worker %d: %s \n", worker_id, "DONE2");
         }
         bzero(buffer, BUFFER_SIZE);
@@ -341,6 +344,59 @@ void alerts_watcher()
     sem_wait(log_sem);
     write_log("PROCESS ALERTS_WATCHER CREATED");
     sem_post(log_sem);
+
+    // Send hello message to console
+    message msg;
+    msg.type = ALERTS_TO_CONSOLE;
+    strcpy(msg.message, "HELLO FROM ALERTS_WATCHER");
+
+    if (msgsnd(msg_queue_id, &msg, sizeof(msg), 0) == -1)
+    {
+        perror("Error: alerts_watcher: msgsnd");
+        exit(EXIT_FAILURE);
+    }
+
+    while (check_alerts)
+    {
+        sem_wait(key_list_empty_sem);
+        // sem_wait(mutex_shm);
+        printf("Alerts Watcher: Checking alerts\n");
+        struct key_list_node *key_node = &shm->key_list.data[shm->key_list.front];
+        for (int i = 0; i <= shm->key_list.size; i++)
+        {
+            int i = shm->key_list.front;
+            // find corresponding alert in alert_queue
+            while (i != shm->key_list.rear)
+            {
+                // printf("Alerts Watcher: Comparing %s with %s\n", shm->alert_queue.data[i].key, key_node->key);
+                if (strcmp(shm->alert_queue.data[i].key, key_node->key) == 0)
+                {
+                    // check if last value is within alert limits
+                    if (key_node->last_value < shm->alert_queue.data[i].min_value ||
+                        key_node->last_value > shm->alert_queue.data[i].max_value)
+                    {
+                        // print alert
+                        printf("ALERT: Key %s last value %d is outside alert limits [%d, %d]\n",
+                               key_node->key, key_node->last_value, shm->alert_queue.data[i].min_value, shm->alert_queue.data[i].max_value);
+                    }
+                }
+
+                i++;
+                if (i == shm->config_file.max_alerts)
+                {
+                    i = 0;
+                }
+            }
+
+            key_node++;
+            if (key_node == &shm->key_list.data[shm->config_file.max_keys])
+            {
+                key_node = shm->key_list.data;
+            }
+        }
+        // wait for some time before checking again
+        // sem_post(mutex_shm);
+    }
 }
 
 bool is_user_command(char *msg)
