@@ -6,12 +6,15 @@ int shmid;
 SharedMemory *shm;
 sem_t *mutex_shm;
 sem_t *log_sem;
-sem_t *key_list_empty_sem;
-sem_t *worker_status_sem;
+sem_t *check_alert_sem;
 
 int msg_queue_id;
 
 pthread_mutex_t internal_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+pthread_cond_t cond_dispatcher = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cond_alerts_watcher = PTHREAD_COND_INITIALIZER;
+
 struct InternalQueueNode *internal_queue;
 
 bool check_alerts = true;
@@ -80,7 +83,7 @@ void worker(int worker_id, int read_pipe)
             shm->workers_status[worker_id] = 0;
             sem_post(mutex_shm);
 
-            sem_post(key_list_empty_sem);
+            sem_post(check_alert_sem);
             printf("Worker %d: %s \n", worker_id, "DONE2");
         }
         bzero(buffer, BUFFER_SIZE);
@@ -205,7 +208,7 @@ void alerts_watcher()
 
     while (check_alerts)
     {
-        sem_wait(key_list_empty_sem);
+        sem_wait(check_alert_sem);
         // sem_wait(mutex_shm);
         // printf("Alerts Watcher: Checking alerts\n");
         struct key_list_node *key_node = &shm->key_list.data[shm->key_list.front];
@@ -384,16 +387,8 @@ int main()
         exit(1);
     }
 
-    // Create the worker status sem
-    worker_status_sem = sem_open("worker_status_sem", O_CREAT, 0777, 1);
-    if (worker_status_sem == SEM_FAILED)
-    {
-        perror("sem_open: ");
-        exit(1);
-    }
-
-    key_list_empty_sem = sem_open("key_list_empty_sem", O_CREAT, 0777, 1);
-    if (key_list_empty_sem == SEM_FAILED)
+    check_alert_sem = sem_open("check_alert_sem", O_CREAT, 0777, 1);
+    if (check_alert_sem == SEM_FAILED)
     {
         perror("sem_open: ");
         exit(1);

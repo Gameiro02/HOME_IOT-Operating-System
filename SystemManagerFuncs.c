@@ -650,7 +650,10 @@ void handle_sigint()
     // destroy all the semaphores
     sem_destroy(mutex_shm);
     sem_destroy(log_sem);
-    sem_destroy(worker_status_sem);
+    sem_destroy(check_alert_sem);
+
+    // destroy the pthread_mutex_t
+    pthread_mutex_destroy(&internal_queue_mutex);
 
     // Close the named pipes
     unlink(CONSOLE_PIPE);
