@@ -6,7 +6,18 @@ bool process_command_worker(const char *buffer, int worker_id)
     {
         printf("Showing stats\n");
         sem_wait(mutex_shm);
-        print_key_list(&shm->key_list);
+        char *aux = get_key_list(&shm->key_list);
+
+        message msg;
+        msg.type = WORKER_TO_CONSOLE;
+        strcpy(msg.message, aux);
+
+        if (msgsnd(msg_queue_id, &msg, sizeof(msg), 0) == -1)
+        {
+            perror("msgsnd");
+            exit(1);
+        }
+
         sem_post(mutex_shm);
     }
     else if (strncmp(buffer, "reset", 5) == 0)
@@ -34,7 +45,18 @@ bool process_command_worker(const char *buffer, int worker_id)
     {
         printf("Worker %d: %s \n", worker_id, "SENSORS");
         sem_wait(mutex_shm);
-        print_key_names(&shm->key_list);
+        char *aux = get_key_names(&shm->key_list);
+
+        message msg;
+        msg.type = WORKER_TO_CONSOLE;
+        strcpy(msg.message, aux);
+
+        if (msgsnd(msg_queue_id, &msg, sizeof(msg), 0) == -1)
+        {
+            perror("msgsnd");
+            exit(1);
+        }
+
         sem_post(mutex_shm);
     }
     else if (strncmp(buffer, "add_alert", 9) == 0)
@@ -56,7 +78,7 @@ bool process_command_worker(const char *buffer, int worker_id)
         token = strtok(NULL, " ");
         int max = atoi(token);
 
-        // add_alert AL1 ROOM1_TMP 10 25
+        // add_alert AL1 HOUSETEMP 10 25
         // add_alert AL1 ROOM1_TMP 11 24
         // remove_alert AL1
         // add_alert AL3 ROOM2_TMP 11 26
@@ -112,7 +134,18 @@ bool process_command_worker(const char *buffer, int worker_id)
     {
         printf("Worker %d: %s \n", worker_id, "LIST_ALERTS");
         sem_wait(mutex_shm);
-        print_queue(&shm->alert_queue);
+        char *aux = get_queue_list(&shm->alert_queue);
+
+        message msg;
+        msg.type = WORKER_TO_CONSOLE;
+        strcpy(msg.message, aux);
+
+        if (msgsnd(msg_queue_id, &msg, sizeof(msg), 0) == -1)
+        {
+            perror("msgsnd");
+            exit(1);
+        }
+
         sem_post(mutex_shm);
     }
     else
@@ -307,27 +340,31 @@ struct alert_list_node create_alert_list_node(char *id, char *key, int min_value
     return new_node;
 }
 
-void print_queue(struct queue *q)
+char *get_queue_list(struct queue *q)
 {
+    char *queue_list = malloc(BUFFER_SIZE);
+    int position = 0;
+
     if (is_empty(q))
     {
-        printf("Queue is empty!\n");
+        position += sprintf(queue_list + position, "Queue is empty!\n");
     }
     else
     {
-        printf("%-10s %-15s %-10s %-10s\n", "ID", "Key", "MIN", "MAX");
+        position += sprintf(queue_list + position, "%-10s %-15s %-10s %-10s\n", "ID", "Key", "MIN", "MAX");
         int i = q->front;
         while (i != q->rear)
         {
-            printf("%-10s %-15s %-10d %-10d\n", q->data[i].id, q->data[i].key, q->data[i].min_value, q->data[i].max_value);
+            position += sprintf(queue_list + position, "%-10s %-15s %-10d %-10d\n", q->data[i].id, q->data[i].key, q->data[i].min_value, q->data[i].max_value);
             i++;
             if (i == shm->config_file.max_alerts)
             {
                 i = 0;
             }
         }
-        printf("%-10s %-15s %-10d %-10d\n", q->data[i].id, q->data[i].key, q->data[i].min_value, q->data[i].max_value);
+        position += sprintf(queue_list + position, "%-10s %-15s %-10d %-10d\n", q->data[i].id, q->data[i].key, q->data[i].min_value, q->data[i].max_value);
     }
+    return queue_list;
 }
 
 int is_key_empty(struct key_queue *q)
@@ -428,48 +465,54 @@ bool reset_keys(struct key_queue *q)
     return true;
 }
 
-void print_key_list(struct key_queue *q)
+char *get_key_list(struct key_queue *q)
 {
-    printf("%-10s %-10s %-10s %-10s %-10s %-10s\n", "Key", "Last", "Min", "Max", "Avg", "Count");
+    char *key_list = malloc(BUFFER_SIZE);
+    int position = 0;
+
+    position += sprintf(key_list + position, "%-10s %-10s %-10s %-10s %-10s %-10s\n", "Key", "Last", "Min", "Max", "Avg", "Count");
 
     if (q->size == 0)
     {
-        printf("Queue is empty.\n");
-        return;
+        position += sprintf(key_list + position, "Queue is empty.\n");
+        return key_list;
     }
 
     struct key_list_node *curr = &q->data[q->front];
     for (int i = 0; i < q->size; i++)
     {
-        printf("%-10s %-10d %-10d %-10d %-10.2f %-10d\n", curr->key, curr->last_value, curr->min_value, curr->max_value, curr->avg_value, curr->num_updates);
+        position += sprintf(key_list + position, "%-10s %-10d %-10d %-10d %-10.2f %-10d\n", curr->key, curr->last_value, curr->min_value, curr->max_value, curr->avg_value, curr->num_updates);
         curr++;
         if (curr == &q->data[shm->config_file.max_keys])
         {
             curr = q->data;
         }
     }
+    return key_list;
 }
 
-void print_key_names(struct key_queue *q)
+char *get_key_names(struct key_queue *q)
 {
-    printf("Keys in queue:\n");
+    char *key_names = malloc(BUFFER_SIZE);
+    int position = 0;
 
     if (q->size == 0)
     {
-        printf("Queue is empty.\n");
-        return;
+        strcpy(key_names, "Queue is empty.");
+        return key_names;
     }
 
     struct key_list_node *curr = &q->data[q->front];
     for (int i = 0; i < q->size; i++)
     {
-        printf("%s\n", curr->key);
+        position += sprintf(key_names + position, "%s\n", curr->key);
         curr++;
         if (curr == &q->data[shm->config_file.max_keys])
         {
             curr = q->data;
         }
     }
+    return key_names;
 }
 
 void init_key_queue(struct key_queue *q)

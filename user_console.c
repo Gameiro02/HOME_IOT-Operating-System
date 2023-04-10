@@ -16,7 +16,7 @@ void process_reader()
             exit(EXIT_FAILURE);
         }
 
-        printf("Mensagem recebida: %s\n", buffer.message);
+        printf("%s\n", buffer.message);
 
         // if we receive a message saying "terminate", we terminate the process
         if (strcmp(buffer.message, "terminate") == 0)

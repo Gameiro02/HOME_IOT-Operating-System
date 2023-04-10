@@ -8,6 +8,7 @@
         "user_console_functions.h": "c",
         "signal.h": "c",
         "stdbool.h": "c",
-        "errno.h": "c"
+        "errno.h": "c",
+        "log.h": "c"
     }
 }

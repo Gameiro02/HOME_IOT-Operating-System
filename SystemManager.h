@@ -157,7 +157,7 @@ int is_full(struct queue *q);
 bool enqueue(struct queue *q, struct alert_list_node data);
 bool dequeue_by_id(struct queue *q, char *id);
 struct alert_list_node create_alert_list_node(char *id, char *key, int min_value, int max_value);
-void print_queue(struct queue *q);
+char *get_queue_list(struct queue *q);
 
 void init_key_queue(struct key_queue *q);
 int is_key_empty(struct key_queue *q);
@@ -165,8 +165,8 @@ int is_key_full(struct key_queue *q);
 void enqueue_key(struct key_queue *q, char *key, int value);
 struct key_list_node dequeue_key(struct key_queue *q);
 bool reset_keys(struct key_queue *q);
-void print_key_list(struct key_queue *q);
-void print_key_names(struct key_queue *q);
+char *get_key_list(struct key_queue *q);
+char *get_key_names(struct key_queue *q);
 
 // Variaveis globais
 extern int shmid;

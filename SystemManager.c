@@ -1,3 +1,6 @@
+// Gonçalo Neves - 2020239361
+// André Carvalho -
+
 #include "SystemManager.h"
 #include "log.h"
 
