@@ -1,5 +1,5 @@
 CC = gcc
-FLAGS = -Wall -Wextra
+FLAGS = -Wall -Wextra -pthread
 
 all: SystemManager sensor user_console
 
