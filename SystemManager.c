@@ -10,6 +10,7 @@ SharedMemory *shm;
 sem_t *mutex_shm;
 sem_t *log_sem;
 sem_t *check_alert_sem;
+FILE *log_file;
 
 int msg_queue_id;
 
@@ -244,7 +245,13 @@ void alerts_watcher()
                             message msg;
                             msg.type = WORKER_TO_CONSOLE;
                             // Example: ALERT AL1 (ROOM1_TEMP 10 TO 20) TRIGGERED
-                            sprintf(msg.message, "ALERT %s (%s %d TO %d) TRIGGERED", shm->alert_queue.data[i].id, key_node->key, shm->alert_queue.data[i].min_value, shm->alert_queue.data[i].max_value);
+                            sprintf(msg.message, "ALERT %s (%s %d TO %d) TRIGGERED with value %d", shm->alert_queue.data[i].id, key_node->key, shm->alert_queue.data[i].min_value, shm->alert_queue.data[i].max_value, key_node->last_value);
+
+                            if (msgsnd(msg_queue_id, &msg, sizeof(msg), 0) == -1)
+                            {
+                                perror("Error: alerts_watcher: msgsnd");
+                                exit(EXIT_FAILURE);
+                            }
                         }
                     }
                 }
@@ -346,6 +353,8 @@ void *dispatcher_routine(void *arg)
 int main()
 {
     clear_log();
+    log_file = fopen("log.log", "a");
+
     Config config = read_config_file("config.txt");
     signal(SIGINT, handle_sigint);
 
@@ -355,6 +364,7 @@ int main()
     if (msg_queue_id < 0)
     {
         perror("msgget: ");
+        handle_sigint();
         exit(1);
     }
 
@@ -363,6 +373,7 @@ int main()
     if (shmid < 0)
     {
         perror("shmget: ");
+        handle_sigint();
         exit(1);
     }
 
@@ -372,6 +383,7 @@ int main()
     if (shm == NULL)
     {
         perror("shmat: ");
+        handle_sigint();
         exit(1);
     }
 
@@ -379,6 +391,7 @@ int main()
     if (mutex_shm == SEM_FAILED)
     {
         perror("sem_open: ");
+        handle_sigint();
         exit(1);
     }
 
@@ -387,6 +400,7 @@ int main()
     if (log_sem == SEM_FAILED)
     {
         perror("sem_open: ");
+        handle_sigint();
         exit(1);
     }
 
@@ -394,6 +408,7 @@ int main()
     if (check_alert_sem == SEM_FAILED)
     {
         perror("sem_open: ");
+        handle_sigint();
         exit(1);
     }
 
@@ -410,6 +425,7 @@ int main()
     if (pipe(pipes[0]) == -1)
     {
         perror("unnamed pipe: ");
+        handle_sigint();
         exit(EXIT_FAILURE);
     }
 
@@ -419,6 +435,7 @@ int main()
         if (pipe(pipes[i]) == -1)
         {
             perror("unnamed pipe: ");
+            handle_sigint();
             exit(EXIT_FAILURE);
         }
     }
@@ -426,16 +443,29 @@ int main()
     // Create workers
     for (int i = 0; i < config.n_workers; i++)
     {
-        if (fork() == 0)
+        pid_t pid = fork();
+        if (pid == -1)
         {
-            // write(pipes[i][WRITE], "Hello", 6);
+            perror("fork: ");
+            handle_sigint();
+            exit(EXIT_FAILURE);
+        }
+        else if (pid == 0)
+        {
             worker(i, pipes[i][READ]);
             exit(0);
         }
     }
 
     // Create the Alerts Watcher process
-    if (fork() == 0)
+    pid_t pid = fork();
+    if (pid == -1)
+    {
+        perror("fork: ");
+        handle_sigint();
+        exit(EXIT_FAILURE);
+    }
+    else if (pid == 0)
     {
         alerts_watcher();
         exit(0);
@@ -443,13 +473,47 @@ int main()
 
     pthread_t console_reader, sensor_reader, dispatcher;
 
-    pthread_create(&sensor_reader, NULL, sensor_reader_routine, NULL);
-    pthread_create(&console_reader, NULL, console_reader_routine, NULL);
-    pthread_create(&dispatcher, NULL, dispatcher_routine, pipes);
+    if (pthread_create(&sensor_reader, NULL, sensor_reader_routine, NULL) != 0)
+    {
+        perror("pthread_create: ");
+        handle_sigint();
+        exit(1);
+    }
 
-    pthread_join(sensor_reader, NULL);
-    pthread_join(console_reader, NULL);
-    pthread_join(dispatcher, NULL);
+    if (pthread_create(&console_reader, NULL, console_reader_routine, NULL) != 0)
+    {
+        perror("pthread_create: ");
+        handle_sigint();
+        exit(1);
+    }
+
+    if (pthread_create(&dispatcher, NULL, dispatcher_routine, pipes) != 0)
+    {
+        perror("pthread_create: ");
+        handle_sigint();
+        exit(1);
+    }
+
+    if (pthread_join(sensor_reader, NULL) != 0)
+    {
+        perror("pthread_join: ");
+        handle_sigint();
+        exit(1);
+    }
+
+    if (pthread_join(console_reader, NULL) != 0)
+    {
+        perror("pthread_join: ");
+        handle_sigint();
+        exit(1);
+    }
+
+    if (pthread_join(dispatcher, NULL) != 0)
+    {
+        perror("pthread_join: ");
+        handle_sigint();
+        exit(1);
+    }
 
     // Wait for all processes to finish
     for (int i = 0; i < config.n_workers + 1; i++) // +1 because of the alerts watcher

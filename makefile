@@ -22,7 +22,7 @@ user_console: user_console.o user_console_functions.o
 
 SystemManager.o: SystemManager.c SystemManager.h
 SystemManagerFuncs.o: SystemManagerFuncs.c SystemManager.h
-log.o: log.c log.h
+log.o: log.c log.h SystemManager.h
 sensor.o: sensor.c
 user_console.o: user_console.c user_console_functions.h
 user_console_functions.o: user_console_functions.c user_console_functions.h

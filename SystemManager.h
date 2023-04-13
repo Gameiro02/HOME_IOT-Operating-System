@@ -177,5 +177,6 @@ extern sem_t *check_alert_sem;
 extern int msg_queue_id;
 extern struct InternalQueueNode *internal_queue;
 extern pthread_mutex_t internal_queue_mutex;
+extern FILE *log_file;
 
 #endif

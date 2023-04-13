@@ -175,7 +175,11 @@ Config read_config_file(char *filename)
         exit(EXIT_FAILURE);
     }
 
-    fscanf(fp, "%d\n%d\n%d\n%d\n%d", &config.queue_sz, &config.n_workers, &config.max_keys, &config.max_sensors, &config.max_alerts);
+    if (fscanf(fp, "%d\n%d\n%d\n%d\n%d", &config.queue_sz, &config.n_workers, &config.max_keys, &config.max_sensors, &config.max_alerts) != 5)
+    {
+        printf("Erro na linha %d: Arquivo de configuração inválido.\n", line_number);
+        exit(EXIT_FAILURE);
+    }
 
     if (config.queue_sz < 1)
     {
@@ -704,6 +708,8 @@ void handle_sigint()
 
     // Remove a message queue at the end of the program
     msgctl(msg_queue_id, IPC_RMID, 0);
+
+    log_file = fopen("log.log", "a");
 
     exit(0);
 }
