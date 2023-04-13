@@ -17,7 +17,7 @@ int msg_queue_id;
 pthread_mutex_t internal_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_cond_t cond_dispatcher = PTHREAD_COND_INITIALIZER;
-pthread_cond_t cond_alerts_watcher = PTHREAD_COND_INITIALIZER;
+// pthread_cond_t cond_alerts_watcher = PTHREAD_COND_INITIALIZER;
 
 struct InternalQueueNode *internal_queue;
 
@@ -458,14 +458,14 @@ int main()
     }
 
     // Create the Alerts Watcher process
-    alerts_watcher_pid = fork();
-    if (alerts_watcher_pid == -1)
+    pid_t pid = fork();
+    if (pid == -1)
     {
         perror("fork: ");
         terminate();
         exit(EXIT_FAILURE);
     }
-    else if (alerts_watcher_pid == 0)
+    else if (pid == 0)
     {
         alerts_watcher();
         exit(0);
