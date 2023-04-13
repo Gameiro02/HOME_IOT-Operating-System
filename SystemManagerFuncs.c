@@ -682,7 +682,7 @@ void print_internal_queue(struct InternalQueueNode *head)
     pthread_mutex_unlock(&internal_queue_mutex);
 }
 
-void handle_sigint()
+void terminate()
 {
     printf("Received SIGINT signal. Exiting...\n");
 
@@ -709,7 +709,7 @@ void handle_sigint()
     // Remove a message queue at the end of the program
     msgctl(msg_queue_id, IPC_RMID, 0);
 
-    log_file = fopen("log.log", "a");
+    fclose(log_file);
 
     exit(0);
 }

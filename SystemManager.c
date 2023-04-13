@@ -356,7 +356,7 @@ int main()
     log_file = fopen("log.log", "a");
 
     Config config = read_config_file("config.txt");
-    signal(SIGINT, handle_sigint);
+    signal(SIGINT, terminate);
 
     // Create the Message Queue
     key_t key = ftok(".", QUEUE_KEY);
@@ -364,7 +364,7 @@ int main()
     if (msg_queue_id < 0)
     {
         perror("msgget: ");
-        handle_sigint();
+        terminate();
         exit(1);
     }
 
@@ -373,7 +373,7 @@ int main()
     if (shmid < 0)
     {
         perror("shmget: ");
-        handle_sigint();
+        terminate();
         exit(1);
     }
 
@@ -383,7 +383,7 @@ int main()
     if (shm == NULL)
     {
         perror("shmat: ");
-        handle_sigint();
+        terminate();
         exit(1);
     }
 
@@ -391,7 +391,7 @@ int main()
     if (mutex_shm == SEM_FAILED)
     {
         perror("sem_open: ");
-        handle_sigint();
+        terminate();
         exit(1);
     }
 
@@ -400,7 +400,7 @@ int main()
     if (log_sem == SEM_FAILED)
     {
         perror("sem_open: ");
-        handle_sigint();
+        terminate();
         exit(1);
     }
 
@@ -408,7 +408,7 @@ int main()
     if (check_alert_sem == SEM_FAILED)
     {
         perror("sem_open: ");
-        handle_sigint();
+        terminate();
         exit(1);
     }
 
@@ -425,7 +425,7 @@ int main()
     if (pipe(pipes[0]) == -1)
     {
         perror("unnamed pipe: ");
-        handle_sigint();
+        terminate();
         exit(EXIT_FAILURE);
     }
 
@@ -435,7 +435,7 @@ int main()
         if (pipe(pipes[i]) == -1)
         {
             perror("unnamed pipe: ");
-            handle_sigint();
+            terminate();
             exit(EXIT_FAILURE);
         }
     }
@@ -447,7 +447,7 @@ int main()
         if (pid == -1)
         {
             perror("fork: ");
-            handle_sigint();
+            terminate();
             exit(EXIT_FAILURE);
         }
         else if (pid == 0)
@@ -458,14 +458,14 @@ int main()
     }
 
     // Create the Alerts Watcher process
-    pid_t pid = fork();
-    if (pid == -1)
+    alerts_watcher_pid = fork();
+    if (alerts_watcher_pid == -1)
     {
         perror("fork: ");
-        handle_sigint();
+        terminate();
         exit(EXIT_FAILURE);
     }
-    else if (pid == 0)
+    else if (alerts_watcher_pid == 0)
     {
         alerts_watcher();
         exit(0);
@@ -476,42 +476,42 @@ int main()
     if (pthread_create(&sensor_reader, NULL, sensor_reader_routine, NULL) != 0)
     {
         perror("pthread_create: ");
-        handle_sigint();
+        terminate();
         exit(1);
     }
 
     if (pthread_create(&console_reader, NULL, console_reader_routine, NULL) != 0)
     {
         perror("pthread_create: ");
-        handle_sigint();
+        terminate();
         exit(1);
     }
 
     if (pthread_create(&dispatcher, NULL, dispatcher_routine, pipes) != 0)
     {
         perror("pthread_create: ");
-        handle_sigint();
+        terminate();
         exit(1);
     }
 
     if (pthread_join(sensor_reader, NULL) != 0)
     {
         perror("pthread_join: ");
-        handle_sigint();
+        terminate();
         exit(1);
     }
 
     if (pthread_join(console_reader, NULL) != 0)
     {
         perror("pthread_join: ");
-        handle_sigint();
+        terminate();
         exit(1);
     }
 
     if (pthread_join(dispatcher, NULL) != 0)
     {
         perror("pthread_join: ");
-        handle_sigint();
+        terminate();
         exit(1);
     }
 

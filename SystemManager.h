@@ -117,7 +117,7 @@ typedef struct
 Config read_config_file(char *filename);
 bool is_user_command(char *msg);
 void print_config(Config config);
-void handle_sigint();
+void terminate();
 void inicilize_shared_memory(Config config);
 
 void print_shared_memory();
