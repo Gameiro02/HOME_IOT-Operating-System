@@ -1,5 +1,5 @@
 // Gonçalo Neves - 2020239361
-// André Carvalho -
+// André Carvalho - 2020237655
 
 #include "SystemManager.h"
 #include "log.h"
@@ -16,7 +16,7 @@ int msg_queue_id;
 
 pthread_mutex_t internal_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-pthread_cond_t cond_dispatcher = PTHREAD_COND_INITIALIZER;
+pthread_cond_t internal_queue_cond = PTHREAD_COND_INITIALIZER;
 // pthread_cond_t cond_alerts_watcher = PTHREAD_COND_INITIALIZER;
 
 struct InternalQueueNode *internal_queue;
@@ -130,13 +130,12 @@ void *sensor_reader_routine()
         if (read_bytes > 0)
         {
             printf("Sensor Reader Routine Received: %s \n", buffer);
-
-            // sem_wait(internal_queue_sem);
             struct InternalQueueNode aux = parse_params(buffer);
             push_sensor_message_to_internal_queue(&internal_queue, aux.sensor_id, aux.key, aux.value, aux.command, aux.priority);
-            // print_internal_queue(internal_queue);
 
-            // sem_post(internal_queue_sem);
+            pthread_mutex_lock(&internal_queue_mutex);
+            pthread_cond_signal(&internal_queue_cond);
+            pthread_mutex_unlock(&internal_queue_mutex);
         }
         bzero(buffer, BUFFER_SIZE);
     }
@@ -181,10 +180,12 @@ void *console_reader_routine()
         if (read_bytes > 0)
         {
             printf("User Console: %s \n", buffer);
-            // sem_wait(internal_queue_sem);
             push_sensor_message_to_internal_queue(&internal_queue, NULL, NULL, 0, buffer, 0);
-            // print_internal_queue(internal_queue);
-            // sem_post(internal_queue_sem);
+
+            // Signal the internal queue that there is a new message (condition variable is now open)
+            pthread_mutex_lock(&internal_queue_mutex);
+            pthread_cond_signal(&internal_queue_cond);
+            pthread_mutex_unlock(&internal_queue_mutex);
         }
         bzero(buffer, BUFFER_SIZE);
     }
@@ -290,61 +291,63 @@ void *dispatcher_routine(void *arg)
 
     while (true)
     {
-        if (internal_queue != NULL)
+        // wait for the internal queue to have at least one node
+        pthread_mutex_lock(&internal_queue_mutex);
+        while (internal_queue == NULL)
         {
-            // print_internal_queue(internal_queue);
-
-            struct InternalQueueNode *node = pop(&internal_queue);
-            if (node == NULL)
-            {
-                bzero(msg, BUFFER_SIZE);
-                continue;
-            }
-
-            // Check it the messsage comes from the console or from a sensor
-            if (is_user_command(node->command))
-            {
-                char *comando = malloc(100);
-                sprintf(comando, "%s", node->command);
-                strcpy(msg, comando);
-            }
-            else
-            {
-                char *sensor_msg = create_msg_to_worker(node);
-                strcpy(msg, sensor_msg);
-            }
-
-            int random_worker;
-
-            if (num_workers == 1)
-            {
-                random_worker = 0;
-            }
-            else
-            {
-                random_worker = rand() % num_workers;
-            }
-            // printf("aaa\n");
-            sem_wait(mutex_shm);
-            // printf("bbb\n");
-            while (shm->workers_status[random_worker] != 0)
-            {
-                random_worker = rand() % num_workers;
-            }
-            sem_post(mutex_shm);
-
-            // Send the message to the worker
-            if (write(pipes[random_worker][WRITE], msg, strlen(msg)) == -1)
-            {
-                perror("Erro ao escrever na pipe");
-                pthread_exit(NULL);
-            }
-            else
-            {
-                printf("Mensagem enviada para o worker %d: %s\n", random_worker, msg);
-            }
-            bzero(msg, BUFFER_SIZE);
+            pthread_cond_wait(&internal_queue_cond, &internal_queue_mutex);
         }
+        pthread_mutex_unlock(&internal_queue_mutex);
+
+        // pop a node from the internal queue
+        struct InternalQueueNode *node = pop(&internal_queue);
+        if (node == NULL)
+        {
+            bzero(msg, BUFFER_SIZE);
+            continue;
+        }
+
+        // Check if the message comes from the console or from a sensor
+        if (is_user_command(node->command))
+        {
+            char *comando = malloc(100);
+            sprintf(comando, "%s", node->command);
+            strcpy(msg, comando);
+        }
+        else
+        {
+            char *sensor_msg = create_msg_to_worker(node);
+            strcpy(msg, sensor_msg);
+        }
+
+        // choose a random worker to send the message to
+        int random_worker;
+        if (num_workers == 1)
+        {
+            random_worker = 0;
+        }
+        else
+        {
+            random_worker = rand() % num_workers;
+        }
+        sem_wait(mutex_shm);
+        while (shm->workers_status[random_worker] != 0)
+        {
+            random_worker = rand() % num_workers;
+        }
+        sem_post(mutex_shm);
+
+        // send the message to the worker
+        if (write(pipes[random_worker][WRITE], msg, strlen(msg)) == -1)
+        {
+            perror("Erro ao escrever na pipe");
+            pthread_exit(NULL);
+        }
+        else
+        {
+            printf("Mensagem enviada para o worker %d: %s\n", random_worker, msg);
+        }
+        bzero(msg, BUFFER_SIZE);
     }
 
     pthread_exit(NULL);
