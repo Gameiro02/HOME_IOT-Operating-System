@@ -119,7 +119,7 @@ bool is_user_command(char *msg);
 void print_config(Config config);
 void terminate();
 void inicilize_shared_memory(Config config);
-
+void ignore_all_signals();
 void print_shared_memory();
 
 void create_named_pipes();

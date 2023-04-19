@@ -15,7 +15,6 @@ FILE *log_file;
 int msg_queue_id;
 
 pthread_mutex_t internal_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 pthread_cond_t internal_queue_cond = PTHREAD_COND_INITIALIZER;
 // pthread_cond_t cond_alerts_watcher = PTHREAD_COND_INITIALIZER;
 
@@ -360,6 +359,7 @@ int main()
 
     Config config = read_config_file("config.txt");
     signal(SIGINT, terminate);
+    ignore_all_signals();
 
     // Create the Message Queue
     key_t key = ftok(".", QUEUE_KEY);
