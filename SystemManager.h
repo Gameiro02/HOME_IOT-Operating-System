@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include "log.h"
 
 #define WORKER_TO_CONSOLE 2
 #define ALERTS_TO_CONSOLE 3

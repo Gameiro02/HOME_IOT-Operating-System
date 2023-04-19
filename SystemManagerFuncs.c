@@ -684,7 +684,9 @@ void print_internal_queue(struct InternalQueueNode *head)
 
 void terminate()
 {
-    printf("Received SIGINT signal. Exiting...\n");
+    write_log("HOME_IOT SIMULATOR TERMINATING");
+    write_log("HOME_IOT SIMULATOR WAITING FOR LAST TASKS TO FINISH");
+    write_log("HOME_IOT SIMULATOR CLOSING");
 
     shmctl(shmid, IPC_RMID, NULL);
 
@@ -857,8 +859,12 @@ void ignore_all_signals()
     int i;
     for (i = 1; i <= 64; i++)
     {
-        if (i == SIGINT /*|| i == SIGTSTP*/)
+        if (i == SIGINT || i == SIGTSTP)
         {
+            char *msg = malloc(100);
+            sprintf(msg, "SIGNAL %s RECEIVED", strsignal(i));
+            write_log(msg);
+            free(msg);
             continue;
         }
         if (sigaction(i, &sa, NULL) == -1)
