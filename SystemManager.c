@@ -204,7 +204,7 @@ void alerts_watcher()
     msg.type = WORKER_TO_CONSOLE;
     strcpy(msg.message, "HELLO FROM ALERTS_WATCHER");
 
-    if (msgsnd(msg_queue_id, &msg, sizeof(msg), 0) == -1)
+    if (msgsnd(msg_queue_id, &msg, sizeof(msg) - sizeof(long), 0) == -1)
     {
         perror("Error: alerts_watcher: msgsnd");
         exit(EXIT_FAILURE);
@@ -247,7 +247,7 @@ void alerts_watcher()
                             // Example: ALERT AL1 (ROOM1_TEMP 10 TO 20) TRIGGERED
                             sprintf(msg.message, "ALERT %s (%s %d TO %d) TRIGGERED with value %d", shm->alert_queue.data[i].id, key_node->key, shm->alert_queue.data[i].min_value, shm->alert_queue.data[i].max_value, key_node->last_value);
 
-                            if (msgsnd(msg_queue_id, &msg, sizeof(msg), 0) == -1)
+                            if (msgsnd(msg_queue_id, &msg, sizeof(msg) - sizeof(long), 0) == -1)
                             {
                                 perror("Error: alerts_watcher: msgsnd");
                                 exit(EXIT_FAILURE);
@@ -358,8 +358,6 @@ int main()
     log_file = fopen("log.log", "a");
 
     Config config = read_config_file("config.txt");
-    signal(SIGINT, terminate);
-    ignore_all_signals();
 
     // Create the Message Queue
     key_t key = ftok(".", QUEUE_KEY);
@@ -372,7 +370,8 @@ int main()
     }
 
     // Create shared memory
-    int shmid = shmget(IPC_PRIVATE, sizeof(SharedMemory), IPC_CREAT | 0777);
+    int shmid = shmget(IPC_PRIVATE, sizeof(SharedMemory) + sizeof(struct alert_list_node) * config.max_alerts + sizeof(struct key_list_node) * config.max_keys + sizeof(int) * config.n_workers, IPC_CREAT | 0777);
+    // int shmid = shmget(IPC_PRIVATE, sizeof(SharedMemory), IPC_CREAT | 0777);
     if (shmid < 0)
     {
         perror("shmget: ");
@@ -473,6 +472,9 @@ int main()
         alerts_watcher();
         exit(0);
     }
+
+    signal(SIGINT, terminate);
+    ignore_all_signals();
 
     pthread_t console_reader, sensor_reader, dispatcher;
 

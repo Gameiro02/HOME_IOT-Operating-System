@@ -27,14 +27,15 @@ No alerts watcher é preciso meter uma vairavel de condição para nao haver bus
 
 ---------------------------------------------
 
-Perguntar ao stor como e que se vai sinconizar a fila com vairos workers
-Perguntar ao stor se e suposto aparecer 5 vezes exiting lalalala quando se faz control c
 
-
-
-
-
+Perguntar ao stor como e que se vai sinconizar a fila com vairos workers DONE
 chamar a funcao de terminar qunado da erro DONE 
-alterar o tamanho da shm
 fork e pthread create verificar se falhou DONE
-abrir so uma vez o ficheiro de log 
+abrir so uma vez o ficheiro de log DONE
+Erros do fork DONE
+alterar o tamanho da shm DONE
+Perguntar ao stor se e suposto aparecer 5 vezes exiting lalalala quando se faz control c DONE
+
+
+Usar o type da estrutura de mensagem para identificar o user_console que queremos
+Perguntar ao stor porque e que quando se printa o valor do sensor reader vem aquilo com caracteres a mais as vezes 

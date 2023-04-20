@@ -60,6 +60,7 @@ struct alert_list_node
 struct queue
 {
     struct alert_list_node data[QUEUE_SIZE];
+    // struct alert_list_node *head;
     int front;
     int rear;
     int size;
@@ -99,7 +100,7 @@ struct InternalQueueNode
 typedef struct
 {
     Config config_file;
-    int *workers_status; // 0 - not working, 1 - working
+    int *workers_status;
 
     int num_keys_added;
     int num_alerts_added;

@@ -3,6 +3,7 @@
 #include <sys/ipc.h>
 
 int queue_id;
+int console_identifier;
 
 void process_reader()
 {
@@ -66,7 +67,6 @@ void ignore_signals()
 
 int main(int argc, char *argv[])
 {
-    int console_identifier;
     key_t key;
     key = ftok(".", QUEUE_KEY);
 
@@ -98,15 +98,14 @@ int main(int argc, char *argv[])
 
     console_identifier = atoi(argv[1]);
 
-    signal(SIGINT, handle_sigint);
-    ignore_signals();
-
     // Create a new process to read the commands from the message queue
     if (fork() == 0)
     {
         process_reader();
         exit(EXIT_SUCCESS);
     }
+    signal(SIGINT, handle_sigint);
+    ignore_signals();
 
     while (1)
     {

@@ -5,7 +5,7 @@
 #include "user_console_functions.h"
 #include "log.h"
 
-void read_command()
+void read_command(int console_identifier)
 {
     char command[MAX_COMMAND_LENGTH];
 

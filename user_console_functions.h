@@ -35,7 +35,7 @@ void command_list_alerts(int console_identifier);
 
 void command_exit(int console_identifier);
 
-void read_command();
+void read_command(int console_identifier);
 
 void write_to_named_pipe(const char *message, const char *pipe_name);
 

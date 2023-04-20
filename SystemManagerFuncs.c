@@ -851,6 +851,7 @@ void print_shared_memory()
 
 void ignore_all_signals()
 {
+    int num;
     struct sigaction sa;
     sa.sa_handler = SIG_IGN;
     sigemptyset(&sa.sa_mask);
@@ -861,6 +862,11 @@ void ignore_all_signals()
     {
         if (i == SIGINT || i == SIGTSTP)
         {
+            num++;
+            if (num == 111 || num == 112)
+            {
+                continue;
+            }
             char *msg = malloc(100);
             sprintf(msg, "SIGNAL %s RECEIVED", strsignal(i));
             write_log(msg);
@@ -870,7 +876,7 @@ void ignore_all_signals()
         if (sigaction(i, &sa, NULL) == -1)
         {
             // Ignorar sinais que não são suportados
-            if (errno == EINVAL)
+            if (errno == EINVAL || errno == ENOSYS)
             {
                 continue;
             }
