@@ -38,4 +38,5 @@ Perguntar ao stor se e suposto aparecer 5 vezes exiting lalalala quando se faz c
 
 
 Usar o type da estrutura de mensagem para identificar o user_console que queremos
-Perguntar ao stor porque e que quando se printa o valor do sensor reader vem aquilo com caracteres a mais as vezes 
+Perguntar ao stor porque e que quando se printa o valor do sensor reader vem aquilo com caracteres a mais as vezes
+adicionar a cena de remover threads ao termiate 

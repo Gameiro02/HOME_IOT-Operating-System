@@ -55,6 +55,8 @@ struct alert_list_node
     char key[BUFFER_SIZE];
     int min_value;
     int max_value;
+
+    int user_console_id;
 };
 
 struct queue
@@ -134,23 +136,14 @@ void *sensor_reader_routine();
 void alerts_watcher();
 
 bool push_sensor_message_to_internal_queue(struct InternalQueueNode **head, char *sensor, char *key, int value, char *command, int priority);
-
 void print_internal_queue(struct InternalQueueNode *head);
-
 struct InternalQueueNode *pop(struct InternalQueueNode **head);
-
 struct InternalQueueNode parse_params(const char *str);
-
 char *create_msg_to_worker(struct InternalQueueNode *node);
-
 bool process_command_worker(const char *buffer, int worker_id);
-
 bool check_msg(char *str);
-
 bool add_alert(struct alert_list_node **head, char *id, char *key, int min_value, int max_value);
-
 bool remove_alert(struct alert_list_node **head, char *id);
-
 void list_alerts(struct alert_list_node *head);
 
 void init_queue(struct queue *q);
@@ -158,7 +151,7 @@ int is_empty(struct queue *q);
 int is_full(struct queue *q);
 bool enqueue(struct queue *q, struct alert_list_node data);
 bool dequeue_by_id(struct queue *q, char *id);
-struct alert_list_node create_alert_list_node(char *id, char *key, int min_value, int max_value);
+struct alert_list_node create_alert_list_node(char *id, char *key, int min_value, int max_value, int user_console);
 char *get_queue_list(struct queue *q);
 
 void init_key_queue(struct key_queue *q);
