@@ -35,8 +35,8 @@ abrir so uma vez o ficheiro de log DONE
 Erros do fork DONE
 alterar o tamanho da shm DONE
 Perguntar ao stor se e suposto aparecer 5 vezes exiting lalalala quando se faz control c DONE
+Usar o type da estrutura de mensagem para identificar o user_console que queremos DONE
+adicionar a cena de remover threads ao termiate DONE
 
 
-Usar o type da estrutura de mensagem para identificar o user_console que queremos
-Perguntar ao stor porque e que quando se printa o valor do sensor reader vem aquilo com caracteres a mais as vezes
-adicionar a cena de remover threads ao termiate 
+Perguntar ao stor porque e que quando se printa o valor do sensor reader vem aquilo com caracteres a mais as vezes (???)

@@ -173,5 +173,6 @@ extern int msg_queue_id;
 extern struct InternalQueueNode *internal_queue;
 extern pthread_mutex_t internal_queue_mutex;
 extern FILE *log_file;
+extern pthread_t console_reader, sensor_reader, dispatcher;
 
 #endif

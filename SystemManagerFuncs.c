@@ -737,6 +737,11 @@ void terminate()
     // destroy the pthread_mutex_t
     pthread_mutex_destroy(&internal_queue_mutex);
 
+    // End the threads
+    pthread_cancel(console_reader);
+    pthread_cancel(sensor_reader);
+    pthread_cancel(dispatcher);
+
     // Close the named pipes
     unlink(CONSOLE_PIPE);
     unlink(SENSOR_PIPE);
