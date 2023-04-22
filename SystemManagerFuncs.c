@@ -98,19 +98,21 @@ bool process_command_worker(const char *buffer, int worker_id)
         int min = atoi(token);
         token = strtok(NULL, " ");
         int max = atoi(token);
+        token = strtok(NULL, " ");
+        int console_id = atoi(token);
 
         // add_alert AL1 HOUSETEMP 10 25
         // add_alert AL1 ROOM1_TMP 11 24
         // remove_alert AL1
         // add_alert AL3 ROOM2_TMP 11 26
 
-        struct alert_list_node alert = create_alert_list_node(id, key, min, max);
+        struct alert_list_node alert = create_alert_list_node(id, key, min, max, console_id);
         sem_wait(mutex_shm);
         if (enqueue(&shm->alert_queue, alert) == false)
         {
             sem_post(mutex_shm);
             message msg;
-            msg.type = WORKER_TO_CONSOLE;
+            msg.type = console_id;
             strcpy(msg.message, "ERROR");
             msgsnd(msg_queue_id, &msg, sizeof(msg), 0);
         }
@@ -118,7 +120,7 @@ bool process_command_worker(const char *buffer, int worker_id)
         {
             sem_post(mutex_shm);
             message msg;
-            msg.type = WORKER_TO_CONSOLE;
+            msg.type = console_id;
             strcpy(msg.message, "OK");
             msgsnd(msg_queue_id, &msg, sizeof(msg), 0);
         }
@@ -362,13 +364,14 @@ bool dequeue_by_id(struct queue *q, char *id)
     return true;
 }
 
-struct alert_list_node create_alert_list_node(char *id, char *key, int min_value, int max_value)
+struct alert_list_node create_alert_list_node(char *id, char *key, int min_value, int max_value, int user_console_id)
 {
     struct alert_list_node new_node;
     strcpy(new_node.id, id);
     strcpy(new_node.key, key);
     new_node.min_value = min_value;
     new_node.max_value = max_value;
+    new_node.user_console_id = user_console_id;
     return new_node;
 }
 
@@ -712,7 +715,7 @@ void print_internal_queue(struct InternalQueueNode *head)
 
 void terminate()
 {
-    write_log("HOME_IOT SIMULATOR TERMINATING");
+    write_log("\nHOME_IOT SIMULATOR TERMINATING");
     write_log("HOME_IOT SIMULATOR WAITING FOR LAST TASKS TO FINISH");
     write_log("HOME_IOT SIMULATOR CLOSING");
 

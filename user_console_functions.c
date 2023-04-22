@@ -20,6 +20,7 @@ void read_command(int console_identifier)
         sprintf(command_with_id, "%s %d", command, console_identifier);
         write_to_named_pipe(CONSOLE_PIPE, command_with_id);
         // printf("Sent command: %s\n", command_with_id);
+        free(command_with_id);
     }
     else if (strcmp(command, "reset") == 0)
     {
@@ -27,6 +28,7 @@ void read_command(int console_identifier)
         sprintf(command_with_id, "%s %d", command, console_identifier);
         write_to_named_pipe(CONSOLE_PIPE, command_with_id);
         // printf("Sent command: %s\n", command_with_id);
+        free(command_with_id);
     }
     else if (strcmp(command, "sensors") == 0)
     {
@@ -34,6 +36,7 @@ void read_command(int console_identifier)
         sprintf(command_with_id, "%s %d", command, console_identifier);
         write_to_named_pipe(CONSOLE_PIPE, command_with_id);
         // printf("Sent command: %s\n", command_with_id);
+        free(command_with_id);
     }
     else if (strcmp(command, "list_alerts") == 0)
     {
@@ -41,6 +44,7 @@ void read_command(int console_identifier)
         sprintf(command_with_id, "%s %d", command, console_identifier);
         write_to_named_pipe(CONSOLE_PIPE, command_with_id);
         // printf("Sent command: %s\n", command_with_id);
+        free(command_with_id);
     }
     else if (strcmp(command, "exit") == 0)
     {
@@ -81,7 +85,10 @@ void read_command(int console_identifier)
             printf("ERROR: Invalid max!\n");
         }
 
-        write_to_named_pipe(CONSOLE_PIPE, command);
+        char *msg = malloc(strlen(command) + 50);
+        sprintf(msg, "%s %d", command, console_identifier);
+        write_to_named_pipe(CONSOLE_PIPE, msg);
+        free(msg);
     }
     else if (strncmp(command, "remove_alert ", 13) == 0)
     {

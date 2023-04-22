@@ -12,8 +12,17 @@ void write_log(char *message)
     // Get the current time hour:minute:second
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
-    char time[9];
-    sprintf(time, "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
+    char time[20];
+
+    if (message[0] == '\n')
+    {
+        message++;
+        sprintf(time, "\n%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
+    }
+    else
+    {
+        sprintf(time, "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
+    }
 
     // Write log entry to the file
     fprintf(log_file, "%s %s\n", time, message);
