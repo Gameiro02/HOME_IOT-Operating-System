@@ -4,12 +4,19 @@ bool process_command_worker(const char *buffer, int worker_id)
 {
     if (strncmp(buffer, "stats", 5) == 0)
     {
+        // Separate the command with format "stats console_id"
+        char *temp = malloc(strlen(buffer));
+        strcpy(temp, buffer);
+        char *token = strtok(temp, " ");
+        token = strtok(NULL, " ");
+        int console_id = atoi(token);
+
         printf("Showing stats\n");
         sem_wait(mutex_shm);
         char *aux = get_key_list(&shm->key_list);
 
         message msg;
-        msg.type = WORKER_TO_CONSOLE;
+        msg.type = console_id;
         strcpy(msg.message, aux);
 
         if (msgsnd(msg_queue_id, &msg, sizeof(msg), 0) == -1)
@@ -22,13 +29,20 @@ bool process_command_worker(const char *buffer, int worker_id)
     }
     else if (strncmp(buffer, "reset", 5) == 0)
     {
+        // Separate the command with format "stats console_id"
+        char *temp = malloc(strlen(buffer));
+        strcpy(temp, buffer);
+        char *token = strtok(temp, " ");
+        token = strtok(NULL, " ");
+        int console_id = atoi(token);
+
         printf("Worker %d: %s \n", worker_id, "RESET");
         sem_wait(mutex_shm);
         if (reset_keys(&shm->key_list) == false)
         {
             sem_post(mutex_shm);
             message msg;
-            msg.type = WORKER_TO_CONSOLE;
+            msg.type = console_id;
             strcpy(msg.message, "ERROR");
             msgsnd(msg_queue_id, &msg, sizeof(msg), 0);
         }
@@ -36,19 +50,26 @@ bool process_command_worker(const char *buffer, int worker_id)
         {
             sem_post(mutex_shm);
             message msg;
-            msg.type = WORKER_TO_CONSOLE;
+            msg.type = console_id;
             strcpy(msg.message, "OK");
             msgsnd(msg_queue_id, &msg, sizeof(msg), 0);
         }
     }
     else if (strncmp(buffer, "sensors", 7) == 0)
     {
+        // Separate the command with format "stats console_id"
+        char *temp = malloc(strlen(buffer));
+        strcpy(temp, buffer);
+        char *token = strtok(temp, " ");
+        token = strtok(NULL, " ");
+        int console_id = atoi(token);
+
         printf("Worker %d: %s \n", worker_id, "SENSORS");
         sem_wait(mutex_shm);
         char *aux = get_key_names(&shm->key_list);
 
         message msg;
-        msg.type = WORKER_TO_CONSOLE;
+        msg.type = console_id;
         strcpy(msg.message, aux);
 
         if (msgsnd(msg_queue_id, &msg, sizeof(msg), 0) == -1)
@@ -132,12 +153,19 @@ bool process_command_worker(const char *buffer, int worker_id)
     }
     else if (strncmp(buffer, "list_alerts", 11) == 0)
     {
+        // Separate the command with format "stats console_id"
+        char *temp = malloc(strlen(buffer));
+        strcpy(temp, buffer);
+        char *token = strtok(temp, " ");
+        token = strtok(NULL, " ");
+        int console_id = atoi(token);
+
         printf("Worker %d: %s \n", worker_id, "LIST_ALERTS");
         sem_wait(mutex_shm);
         char *aux = get_queue_list(&shm->alert_queue);
 
         message msg;
-        msg.type = WORKER_TO_CONSOLE;
+        msg.type = console_id;
         strcpy(msg.message, aux);
 
         if (msgsnd(msg_queue_id, &msg, sizeof(msg), 0) == -1)

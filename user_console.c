@@ -11,7 +11,7 @@ void process_reader()
     while (1)
     {
         // Esperar por uma mensagem da fila de mensagens
-        if (msgrcv(queue_id, &buffer, sizeof(buffer), WORKER_TO_CONSOLE, 0) == -1)
+        if (msgrcv(queue_id, &buffer, sizeof(buffer), console_identifier, 0) == -1)
         {
             perror("Erro ao ler da fila de mensagens");
             exit(EXIT_FAILURE);

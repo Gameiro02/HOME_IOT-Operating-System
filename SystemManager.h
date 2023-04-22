@@ -25,7 +25,7 @@
 #include <sys/msg.h>
 #include "log.h"
 
-#define WORKER_TO_CONSOLE 2
+#define WORKER_TO_CONSOLE 1000
 #define ALERTS_TO_CONSOLE 3
 
 #define BUFFER_SIZE 1024
@@ -151,7 +151,7 @@ int is_empty(struct queue *q);
 int is_full(struct queue *q);
 bool enqueue(struct queue *q, struct alert_list_node data);
 bool dequeue_by_id(struct queue *q, char *id);
-struct alert_list_node create_alert_list_node(char *id, char *key, int min_value, int max_value, int user_console);
+struct alert_list_node create_alert_list_node(char *id, char *key, int min_value, int max_value);
 char *get_queue_list(struct queue *q);
 
 void init_key_queue(struct key_queue *q);

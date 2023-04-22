@@ -16,19 +16,31 @@ void read_command(int console_identifier)
     // Choose the correct function to execute
     if (strcmp(command, "stats") == 0)
     {
-        write_to_named_pipe(CONSOLE_PIPE, command);
+        char *command_with_id = malloc(strlen(command) + 10);
+        sprintf(command_with_id, "%s %d", command, console_identifier);
+        write_to_named_pipe(CONSOLE_PIPE, command_with_id);
+        // printf("Sent command: %s\n", command_with_id);
     }
     else if (strcmp(command, "reset") == 0)
     {
-        write_to_named_pipe(CONSOLE_PIPE, command);
+        char *command_with_id = malloc(strlen(command) + 10);
+        sprintf(command_with_id, "%s %d", command, console_identifier);
+        write_to_named_pipe(CONSOLE_PIPE, command_with_id);
+        // printf("Sent command: %s\n", command_with_id);
     }
     else if (strcmp(command, "sensors") == 0)
     {
-        write_to_named_pipe(CONSOLE_PIPE, command);
+        char *command_with_id = malloc(strlen(command) + 10);
+        sprintf(command_with_id, "%s %d", command, console_identifier);
+        write_to_named_pipe(CONSOLE_PIPE, command_with_id);
+        // printf("Sent command: %s\n", command_with_id);
     }
     else if (strcmp(command, "list_alerts") == 0)
     {
-        write_to_named_pipe(CONSOLE_PIPE, command);
+        char *command_with_id = malloc(strlen(command) + 10);
+        sprintf(command_with_id, "%s %d", command, console_identifier);
+        write_to_named_pipe(CONSOLE_PIPE, command_with_id);
+        // printf("Sent command: %s\n", command_with_id);
     }
     else if (strcmp(command, "exit") == 0)
     {
