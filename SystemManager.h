@@ -25,7 +25,7 @@
 #include <sys/msg.h>
 #include "log.h"
 
-#define WORKER_TO_CONSOLE 1000
+// #define WORKER_TO_CONSOLE 1000
 #define ALERTS_TO_CONSOLE 3
 
 #define BUFFER_SIZE 1024

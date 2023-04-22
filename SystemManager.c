@@ -199,17 +199,6 @@ void alerts_watcher()
     write_log("PROCESS ALERTS_WATCHER CREATED");
     sem_post(log_sem);
 
-    // Send hello message to console
-    message msg;
-    msg.type = WORKER_TO_CONSOLE;
-    strcpy(msg.message, "HELLO FROM ALERTS_WATCHER");
-
-    if (msgsnd(msg_queue_id, &msg, sizeof(msg) - sizeof(long), 0) == -1)
-    {
-        perror("Error: alerts_watcher: msgsnd");
-        exit(EXIT_FAILURE);
-    }
-
     while (check_alerts)
     {
         sem_wait(check_alert_sem);
@@ -243,7 +232,7 @@ void alerts_watcher()
 
                             // Send alert message to console
                             message msg;
-                            msg.type = WORKER_TO_CONSOLE;
+                            msg.type = shm->alert_queue.data[i].user_console_id;
                             // Example: ALERT AL1 (ROOM1_TEMP 10 TO 20) TRIGGERED
                             sprintf(msg.message, "ALERT %s (%s %d TO %d) TRIGGERED with value %d", shm->alert_queue.data[i].id, key_node->key, shm->alert_queue.data[i].min_value, shm->alert_queue.data[i].max_value, key_node->last_value);
 

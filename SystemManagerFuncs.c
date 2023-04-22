@@ -134,13 +134,15 @@ bool process_command_worker(const char *buffer, int worker_id)
         token = strtok(NULL, " ");
         char *id = malloc(strlen(token));
         strcpy(id, token);
+        token = strtok(NULL, " ");
+        int console_id = atoi(token);
 
         sem_wait(mutex_shm);
         if (dequeue_by_id(&shm->alert_queue, id) == false)
         {
             sem_post(mutex_shm);
             message msg;
-            msg.type = WORKER_TO_CONSOLE;
+            msg.type = console_id;
             strcpy(msg.message, "ERROR");
             msgsnd(msg_queue_id, &msg, sizeof(msg), 0);
         }
@@ -148,7 +150,7 @@ bool process_command_worker(const char *buffer, int worker_id)
         {
             sem_post(mutex_shm);
             message msg;
-            msg.type = WORKER_TO_CONSOLE;
+            msg.type = console_id;
             strcpy(msg.message, "OK");
             msgsnd(msg_queue_id, &msg, sizeof(msg), 0);
         }
