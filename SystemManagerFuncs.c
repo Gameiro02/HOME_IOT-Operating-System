@@ -927,3 +927,128 @@ void ignore_all_signals()
 
     return;
 }
+
+// ############################################################################################################
+
+void enqueue_key2(struct key_list_node **head, char *key, int value)
+{
+    // Verifica se a chave já existe na lista
+    struct key_list_node *curr = *head;
+    while (curr != NULL)
+    {
+        if (strcmp(curr->key, key) == 0)
+        {
+            // Se a chave já existe, atualiza os dados correspondentes
+            if (value < curr->min_value)
+            {
+                curr->min_value = value;
+            }
+            if (value > curr->max_value)
+            {
+                curr->max_value = value;
+            }
+            curr->avg_value = (curr->avg_value * curr->num_updates + value) / (curr->num_updates + 1);
+            curr->last_value = value;
+            curr->num_updates++;
+            return;
+        }
+        curr = curr->next;
+    }
+
+    // Se a chave não existe ainda, cria um novo nó de chave e adiciona à lista
+    struct key_list_node *new_node = (struct key_list_node *)malloc(sizeof(struct key_list_node));
+    if (new_node == NULL)
+    {
+        printf("Memory allocation failed!\n");
+        return;
+    }
+
+    strcpy(new_node->key, key);
+    new_node->last_value = value;
+    new_node->min_value = value;
+    new_node->max_value = value;
+    new_node->avg_value = value;
+    new_node->num_updates = 1;
+    new_node->next = *head;
+    *head = new_node;
+}
+struct key_list_node dequeue_key2(struct key_list_node **head)
+{
+    if (*head == NULL)
+    {
+        printf("Queue is empty!\n");
+        exit(1);
+    }
+    else
+    {
+        struct key_list_node *temp_node = *head;
+        struct key_list_node temp_data = *temp_node;
+        *head = (*head)->next;
+        free(temp_node);
+        return temp_data;
+    }
+}
+
+bool reset_keys2(struct key_list_node **head)
+{
+    if (*head == NULL)
+    {
+        // Lista vazia
+        return false;
+    }
+
+    struct key_list_node *curr = *head;
+    while (curr != NULL)
+    {
+        curr->last_value = 0;
+        curr->min_value = 0;
+        curr->max_value = 0;
+        curr->avg_value = 0;
+        curr->num_updates = 0;
+        curr = curr->next;
+    }
+
+    return true;
+}
+
+char *get_key_list2(struct key_list_node *head)
+{
+    char *key_list = malloc(BUFFER_SIZE);
+    int position = 0;
+
+    position += sprintf(key_list + position, "%-10s %-10s %-10s %-10s %-10s %-10s\n", "Key", "Last", "Min", "Max", "Avg", "Count");
+
+    if (head == NULL)
+    {
+        position += sprintf(key_list + position, "Queue is empty.\n");
+        return key_list;
+    }
+
+    struct key_list_node *curr = head;
+    while (curr != NULL)
+    {
+        position += sprintf(key_list + position, "%-10s %-10d %-10d %-10d %-10.2f %-10d\n", curr->key, curr->last_value, curr->min_value, curr->max_value, curr->avg_value, curr->num_updates);
+        curr = curr->next;
+    }
+    return key_list;
+}
+
+char *get_key_names2(struct key_list_node *head)
+{
+    char *key_names = malloc(BUFFER_SIZE);
+    int position = 0;
+
+    if (head == NULL || head->next == NULL)
+    {
+        strcpy(key_names, "Queue is empty.");
+        return key_names;
+    }
+
+    struct key_list_node *curr = head->next;
+    while (curr != NULL)
+    {
+        position += sprintf(key_names + position, "%s\n", curr->key);
+        curr = curr->next;
+    }
+    return key_names;
+}
