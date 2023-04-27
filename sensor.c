@@ -31,6 +31,7 @@ void handle_sigint()
 void handle_sigtstp()
 {
     printf("Number of messages sent: %d\n", s1.num_messages);
+    sleep(s1.interval);
 }
 
 char *sensor_to_string(struct sensor *s)
@@ -138,7 +139,7 @@ int main(int argc, char *argv[])
     {
         str = sensor_to_string(&s1);
         sleep(s1.interval);
-        write(pipe, str, strlen(str) + 1);
+        write(pipe, str, strlen(str));
         printf("Sent: %s\n", str);
         s1.num_messages++;
     }
