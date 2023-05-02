@@ -22,6 +22,7 @@
 #include <sys/ipc.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
+#include <ctype.h>
 #include <sys/msg.h>
 #include "log.h"
 
@@ -122,6 +123,7 @@ Config read_config_file(char *filename);
 bool is_user_command(char *msg);
 void print_config(Config config);
 void terminate();
+void handle_sigstp();
 void inicilize_shared_memory(Config config);
 void ignore_all_signals();
 void print_shared_memory();
@@ -140,7 +142,7 @@ void print_internal_queue(struct InternalQueueNode *head);
 struct InternalQueueNode *pop(struct InternalQueueNode **head);
 struct InternalQueueNode parse_params(const char *str);
 char *create_msg_to_worker(struct InternalQueueNode *node);
-bool process_command_worker(const char *buffer, int worker_id);
+bool process_command_worker(const char *buffer, int worker_id, char *command_aux);
 bool check_msg(char *str);
 bool add_alert(struct alert_list_node **head, char *id, char *key, int min_value, int max_value);
 bool remove_alert(struct alert_list_node **head, char *id);
@@ -174,5 +176,6 @@ extern struct InternalQueueNode *internal_queue;
 extern pthread_mutex_t internal_queue_mutex;
 extern FILE *log_file;
 extern pthread_t console_reader, sensor_reader, dispatcher;
+extern bool debug;
 
 #endif

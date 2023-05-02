@@ -57,10 +57,19 @@ void worker(int worker_id, int read_pipe)
             shm->workers_status[worker_id] = 1;
             sem_post(mutex_shm);
 
-            if (process_command_worker(buffer, worker_id))
+            char *message = malloc(1024);
+            if (process_command_worker(buffer, worker_id, message))
             {
+                char *message_aux = malloc(1024);
+                sprintf(message_aux, "WORKER %d: %s %s", worker_id, buffer, "PROCESSING COMPLETED");
+
+                sem_wait(log_sem);
+                write_log(message_aux);
+                sem_post(log_sem);
+
+                free(message_aux);
+
                 bzero(buffer, BUFFER_SIZE);
-                printf("Worker %d: %s \n", worker_id, "COMMAND DONE");
                 sem_wait(mutex_shm);
                 shm->workers_status[worker_id] = 0;
                 sem_post(mutex_shm);
@@ -70,7 +79,16 @@ void worker(int worker_id, int read_pipe)
             if (!check_msg(buffer))
             {
                 bzero(buffer, BUFFER_SIZE);
-                printf("Worker %d: %s \n", worker_id, "WRONG COMMAND");
+                // printf("Worker %d: %s \n", worker_id, "WRONG COMMAND");
+                char *message_aux = malloc(1024);
+                sprintf(message_aux, "WORKER %d: %s", worker_id, "WRONG COMMAND");
+
+                sem_wait(log_sem);
+                write_log(message_aux);
+                sem_post(log_sem);
+
+                free(message_aux);
+
                 sem_wait(mutex_shm);
                 shm->workers_status[worker_id] = 0;
                 sem_post(mutex_shm);
@@ -83,14 +101,25 @@ void worker(int worker_id, int read_pipe)
             // Add the message to the internal queue
             enqueue_key(&shm->key_list, aux.key, aux.value);
 
-            printf("Worker %d: %s \n", worker_id, "DONE1");
+            if (debug)
+                printf("Worker %d: %s \n", worker_id, "DONE1");
 
             sem_wait(mutex_shm);
             shm->workers_status[worker_id] = 0;
             sem_post(mutex_shm);
 
             sem_post(check_alert_sem);
-            printf("Worker %d: %s \n", worker_id, "DONE2");
+
+            // If its a sensor message print WORKER<num_worker>: <sensor key> DATA PROCESSING COMPLETED
+            if (aux.sensor_id != NULL)
+            {
+                char *message = malloc(100);
+                sprintf(message, "WORKER %d: %s DATA PROCESSING COMPLETED", worker_id, aux.key);
+                sem_wait(log_sem);
+                write_log(message);
+                sem_post(log_sem);
+                free(message);
+            }
         }
         bzero(buffer, BUFFER_SIZE);
     }
@@ -98,7 +127,9 @@ void worker(int worker_id, int read_pipe)
 
 void *sensor_reader_routine()
 {
+    sem_wait(log_sem);
     write_log("THREAD SENSOR_READER CREATED");
+    sem_post(log_sem);
 
     int fd;
     char buffer[BUFFER_SIZE];
@@ -131,7 +162,8 @@ void *sensor_reader_routine()
         // Imprime a mensagem
         if (read_bytes > 0)
         {
-            printf("Sensor Reader Routine Received: %s \n", buffer);
+            if (debug)
+                printf("Sensor Reader Routine Received: %s \n", buffer);
             struct InternalQueueNode aux = parse_params(buffer);
             push_sensor_message_to_internal_queue(&internal_queue, aux.sensor_id, aux.key, aux.value, aux.command, aux.priority);
 
@@ -148,7 +180,9 @@ void *sensor_reader_routine()
 
 void *console_reader_routine()
 {
+    sem_wait(log_sem);
     write_log("THREAD CONSOLE_READER CREATED");
+    sem_post(log_sem);
 
     int fd;
     char buffer[BUFFER_SIZE];
@@ -181,7 +215,8 @@ void *console_reader_routine()
         // Imprime a mensagem
         if (read_bytes > 0)
         {
-            printf("User Console: %s \n", buffer);
+            if (debug)
+                printf("User Console: %s \n", buffer);
             push_sensor_message_to_internal_queue(&internal_queue, NULL, NULL, 0, buffer, 0);
 
             // Signal the internal queue that there is a new message (condition variable is now open)
@@ -249,8 +284,9 @@ void alerts_watcher()
                         if (strcmp(last_alert, key_node->key) != 0)
                         {
                             // print alert and update last_alert
-                            printf("ALERT: Key %s last value %d is outside alert limits [%d, %d]\n",
-                                   key_node->key, key_node->last_value, shm->alert_queue.data[i].min_value, shm->alert_queue.data[i].max_value);
+                            if (debug)
+                                printf("ALERT: Key %s last value %d is outside alert limits [%d, %d]\n",
+                                       key_node->key, key_node->last_value, shm->alert_queue.data[i].min_value, shm->alert_queue.data[i].max_value);
                             strcpy(last_alert, key_node->key);
                             last_value = key_node->last_value;
 
@@ -258,8 +294,10 @@ void alerts_watcher()
                             message msg;
                             msg.type = shm->alert_queue.data[i].user_console_id;
                             // Example: ALERT AL1 (ROOM1_TEMP 10 TO 20) TRIGGERED
-                            sprintf(msg.message, "ALERT %s (%s %d TO %d) TRIGGERED with value %d", shm->alert_queue.data[i].id, key_node->key, shm->alert_queue.data[i].min_value, shm->alert_queue.data[i].max_value, key_node->last_value);
-
+                            sprintf(msg.message, "ALERT %s (%s %d TO %d) TRIGGERED WITH VALUE %d", shm->alert_queue.data[i].id, key_node->key, shm->alert_queue.data[i].min_value, shm->alert_queue.data[i].max_value, key_node->last_value);
+                            sem_wait(log_sem);
+                            write_log(msg.message);
+                            sem_post(log_sem);
                             if (msgsnd(msg_queue_id, &msg, sizeof(msg) - sizeof(long), 0) == -1)
                             {
                                 perror("Error: alerts_watcher: msgsnd");
@@ -271,7 +309,8 @@ void alerts_watcher()
                 // If the node we are in is the first node, we break the loop
                 if (strcmp(shm->alert_queue.data[i].key, first_node.key) == 0)
                 {
-                    printf("WE BREAKED2\n");
+                    if (debug)
+                        printf("WE BREAKED2\n");
                     sem_post(mutex_shm);
                     break;
                 }
@@ -368,6 +407,33 @@ void *dispatcher_routine(void *arg)
         {
             if (debug)
                 printf("Mensagem enviada para o worker %d: %s\n", random_worker, msg);
+
+            // if the message is a sensor msg write to log a msg with this format: "DISPATCHER: ROOM1_TEMP DATA (FROM ROOM1T1 SENSOR) SENT FOR PROCESSING ON WORKER 1"
+            // else if the message is a user command write to log a msg with this format: "DISPATCHER: ADD ALERT AL1 (ROOM1_TEMP 10 TO 20) SENT FOR PROCESSING ON WORKER 2"
+
+            char *log_msg = malloc(1024);
+
+            if (node->command != NULL && strcmp(node->command, "") != 0)
+            {
+                char *command_aux = malloc(1024);
+
+                // put the command in the command_aux in UPPER CASE and dont put the user_console_id in the command_aux
+                for (int i = 0; i < strlen(node->command); i++)
+                {
+                    command_aux[i] = toupper(node->command[i]);
+                }
+
+                sprintf(log_msg, "DISPATCHER: %s SENT FOR PROCESSING ON WORKER %d", command_aux, random_worker);
+            }
+            else if (node->key != NULL)
+            {
+                sprintf(log_msg, "DISPATCHER: %s DATA (FROM %s SENSOR) SENT FOR PROCESSING ON WORKER %d", node->key, node->sensor_id, random_worker);
+            }
+
+            sem_wait(log_sem);
+            write_log(log_msg);
+            sem_post(log_sem);
+            free(log_msg);
         }
         bzero(msg, BUFFER_SIZE);
     }
@@ -381,6 +447,8 @@ int main()
     log_file = fopen("log.log", "a");
 
     Config config = read_config_file("config.txt");
+
+    printf("Todos os sinais, exceto SIGINT e SIGTSTP, serao ignorados.\n");
 
     // Create the Message Queue
     key_t key = ftok(".", QUEUE_KEY);
@@ -497,6 +565,7 @@ int main()
     }
 
     signal(SIGINT, terminate);
+    signal(SIGTSTP, handle_sigstp);
     ignore_all_signals();
 
     if (pthread_create(&sensor_reader, NULL, sensor_reader_routine, NULL) != 0)

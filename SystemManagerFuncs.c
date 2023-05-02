@@ -1,6 +1,6 @@
 #include "SystemManager.h"
 
-bool process_command_worker(const char *buffer, int worker_id)
+bool process_command_worker(const char *buffer, int worker_id, char *command_aux)
 {
     if (strncmp(buffer, "stats", 5) == 0)
     {
@@ -11,7 +11,10 @@ bool process_command_worker(const char *buffer, int worker_id)
         token = strtok(NULL, " ");
         int console_id = atoi(token);
 
-        printf("Showing stats\n");
+        if (debug)
+            printf("Showing stats\n");
+
+        strcpy(command_aux, "STATS");
         sem_wait(mutex_shm);
         char *aux = get_key_list(&shm->key_list);
 
@@ -36,7 +39,10 @@ bool process_command_worker(const char *buffer, int worker_id)
         token = strtok(NULL, " ");
         int console_id = atoi(token);
 
-        printf("Worker %d: %s \n", worker_id, "RESET");
+        if (debug)
+            printf("Worker %d: %s \n", worker_id, "RESET");
+
+        strcpy(command_aux, "RESET");
         sem_wait(mutex_shm);
         if (reset_keys(&shm->key_list) == false)
         {
@@ -64,7 +70,10 @@ bool process_command_worker(const char *buffer, int worker_id)
         token = strtok(NULL, " ");
         int console_id = atoi(token);
 
-        printf("Worker %d: %s \n", worker_id, "SENSORS");
+        if (debug)
+            printf("Worker %d: %s \n", worker_id, "SENSORS");
+
+        strcpy(command_aux, "SENSORS");
         sem_wait(mutex_shm);
         char *aux = get_key_names(&shm->key_list);
 
@@ -82,7 +91,8 @@ bool process_command_worker(const char *buffer, int worker_id)
     }
     else if (strncmp(buffer, "add_alert", 9) == 0)
     {
-        printf("Worker %d: %s \n", worker_id, "ADD_ALERT");
+        if (debug)
+            printf("Worker %d: %s \n", worker_id, "ADD_ALERT");
 
         // add_alert id key min max
         char *aux = malloc(strlen(buffer));
@@ -100,6 +110,8 @@ bool process_command_worker(const char *buffer, int worker_id)
         int max = atoi(token);
         token = strtok(NULL, " ");
         int console_id = atoi(token);
+
+        sprintf(command_aux, "ADD_ALERT %s (%s %d TO %d)", id, key, min, max);
 
         // add_alert AL1 HOUSETEMP 10 25
         // add_alert AL1 ROOM1_TMP 11 24
@@ -127,7 +139,8 @@ bool process_command_worker(const char *buffer, int worker_id)
     }
     else if (strncmp(buffer, "remove_alert", 12) == 0)
     {
-        printf("Worker %d: %s \n", worker_id, "REMOVE_ALERT");
+        if (debug)
+            printf("Worker %d: %s \n", worker_id, "REMOVE_ALERT");
         char *aux = malloc(strlen(buffer));
         strcpy(aux, buffer);
         char *token = strtok(aux, " ");
@@ -136,6 +149,8 @@ bool process_command_worker(const char *buffer, int worker_id)
         strcpy(id, token);
         token = strtok(NULL, " ");
         int console_id = atoi(token);
+
+        sprintf(command_aux, "REMOVE_ALERT %s", id);
 
         sem_wait(mutex_shm);
         if (dequeue_by_id(&shm->alert_queue, id) == false)
@@ -164,7 +179,10 @@ bool process_command_worker(const char *buffer, int worker_id)
         token = strtok(NULL, " ");
         int console_id = atoi(token);
 
-        printf("Worker %d: %s \n", worker_id, "LIST_ALERTS");
+        if (debug)
+            printf("Worker %d: %s \n", worker_id, "LIST_ALERTS");
+
+        strcpy(command_aux, "LIST_ALERTS");
         sem_wait(mutex_shm);
         char *aux = get_queue_list(&shm->alert_queue);
 
@@ -712,9 +730,12 @@ void print_internal_queue(struct InternalQueueNode *head)
 
 void terminate()
 {
-    write_log("\nHOME_IOT SIMULATOR TERMINATING");
+    printf("\n");
+    sem_wait(log_sem);
+    write_log("SIGNAL SIGINT RECEIVED");
     write_log("HOME_IOT SIMULATOR WAITING FOR LAST TASKS TO FINISH");
     write_log("HOME_IOT SIMULATOR CLOSING");
+    sem_post(log_sem);
 
     shmctl(shmid, IPC_RMID, NULL);
 
@@ -902,7 +923,9 @@ void ignore_all_signals()
             }
             char *msg = malloc(100);
             sprintf(msg, "SIGNAL %s RECEIVED", strsignal(i));
+            sem_wait(log_sem);
             write_log(msg);
+            sem_post(log_sem);
             free(msg);
             continue;
         }
@@ -919,6 +942,14 @@ void ignore_all_signals()
     }
 
     return;
+}
+
+void handle_sigstp()
+{
+    printf("\n");
+    sem_wait(log_sem);
+    write_log("SIGNAL SIGTSTP RECEIVED");
+    sem_post(log_sem);
 }
 
 // ############################################################################################################
