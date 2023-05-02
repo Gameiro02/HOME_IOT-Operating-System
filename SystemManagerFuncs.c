@@ -951,6 +951,12 @@ void terminate()
 
     free_queues(internal_queue);
 
+    // remove the condition variable
+    pthread_cond_destroy(&internal_queue_cond);
+
+    // destroy the pthread_mutex_t
+    pthread_mutex_destroy(&internal_queue_mutex);
+
     exit(0);
 }
 

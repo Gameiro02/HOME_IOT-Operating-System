@@ -179,5 +179,7 @@ extern pthread_mutex_t internal_queue_mutex;
 extern FILE *log_file;
 extern pthread_t console_reader, sensor_reader, dispatcher;
 extern bool debug;
+extern pthread_mutex_t internal_queue_mutex;
+extern pthread_cond_t internal_queue_cond;
 
 #endif
