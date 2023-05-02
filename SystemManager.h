@@ -165,6 +165,8 @@ bool reset_keys(struct key_queue *q);
 char *get_key_list(struct key_queue *q);
 char *get_key_names(struct key_queue *q);
 
+void free_queues(struct InternalQueueNode *head);
+
 // Variaveis globais
 extern int shmid;
 extern SharedMemory *shm;

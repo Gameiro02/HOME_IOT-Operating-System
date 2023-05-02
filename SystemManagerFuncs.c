@@ -728,48 +728,6 @@ void print_internal_queue(struct InternalQueueNode *head)
     pthread_mutex_unlock(&internal_queue_mutex);
 }
 
-void terminate()
-{
-    printf("\n");
-    sem_wait(log_sem);
-    write_log("SIGNAL SIGINT RECEIVED");
-    write_log("HOME_IOT SIMULATOR WAITING FOR LAST TASKS TO FINISH");
-    write_log("HOME_IOT SIMULATOR CLOSING");
-    sem_post(log_sem);
-
-    shmctl(shmid, IPC_RMID, NULL);
-
-    // unlink all the semaphores
-    sem_unlink("mutex_shm");
-    sem_unlink("log_sem");
-    sem_unlink("internal_queue_sem");
-    sem_unlink("worker_status_sem");
-
-    // destroy all the semaphores
-    sem_destroy(mutex_shm);
-    sem_destroy(log_sem);
-    sem_destroy(check_alert_sem);
-
-    // destroy the pthread_mutex_t
-    pthread_mutex_destroy(&internal_queue_mutex);
-
-    // End the threads
-    pthread_cancel(console_reader);
-    pthread_cancel(sensor_reader);
-    pthread_cancel(dispatcher);
-
-    // Close the named pipes
-    unlink(CONSOLE_PIPE);
-    unlink(SENSOR_PIPE);
-
-    // Remove a message queue at the end of the program
-    msgctl(msg_queue_id, IPC_RMID, 0);
-
-    fclose(log_file);
-
-    exit(0);
-}
-
 bool check_msg(char *buffer)
 
 {
@@ -950,6 +908,61 @@ void handle_sigstp()
     sem_wait(log_sem);
     write_log("SIGNAL SIGTSTP RECEIVED");
     sem_post(log_sem);
+}
+
+void terminate()
+{
+    printf("\n");
+    sem_wait(log_sem);
+    write_log("SIGNAL SIGINT RECEIVED");
+    write_log("HOME_IOT SIMULATOR WAITING FOR LAST TASKS TO FINISH");
+    write_log("HOME_IOT SIMULATOR CLOSING");
+    sem_post(log_sem);
+
+    shmctl(shmid, IPC_RMID, NULL);
+
+    // unlink all the semaphores
+    sem_unlink("mutex_shm");
+    sem_unlink("log_sem");
+    sem_unlink("internal_queue_sem");
+    sem_unlink("worker_status_sem");
+
+    // destroy all the semaphores
+    sem_destroy(mutex_shm);
+    sem_destroy(log_sem);
+    sem_destroy(check_alert_sem);
+
+    // destroy the pthread_mutex_t
+    pthread_mutex_destroy(&internal_queue_mutex);
+
+    // End the threads
+    pthread_cancel(console_reader);
+    pthread_cancel(sensor_reader);
+    pthread_cancel(dispatcher);
+
+    // Close the named pipes
+    unlink(CONSOLE_PIPE);
+    unlink(SENSOR_PIPE);
+
+    // Remove a message queue at the end of the program
+    msgctl(msg_queue_id, IPC_RMID, 0);
+
+    fclose(log_file);
+
+    free_queues(internal_queue);
+
+    exit(0);
+}
+
+void free_queues(struct InternalQueueNode *head)
+{
+    struct InternalQueueNode *current = head;
+    while (current != NULL)
+    {
+        struct InternalQueueNode *next = current->next;
+        free(current);
+        current = next;
+    }
 }
 
 // ############################################################################################################
