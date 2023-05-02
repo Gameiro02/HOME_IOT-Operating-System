@@ -25,7 +25,15 @@ void write_log(char *message)
     }
 
     // Write log entry to the file
-    fprintf(log_file, "%s %s\n", time, message);
+    if (fprintf(log_file, "%s %s\n", time, message) < 0)
+    {
+        perror("Error writing to log file");
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        fflush(log_file);
+    }
 
     // Print the message to the console
     printf("%s %s\n", time, message);
