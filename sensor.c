@@ -1,3 +1,6 @@
+// Gonçalo Neves  - 2020239361
+// André Carvalho - 2020237655
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
