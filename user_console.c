@@ -67,6 +67,21 @@ void ignore_signals()
 
 int main(int argc, char *argv[])
 {
+    if (argc != 2)
+    {
+        printf("ERROR: Console identifier not provided!\n");
+        return 1;
+    }
+
+    console_identifier = atoi(argv[1]);
+
+    // check if the console identifier is an integer value > 0
+    if (console_identifier <= 0)
+    {
+        printf("ERROR: Console identifier must be an integer value > 0!\n");
+        return 1;
+    }
+
     key_t key;
     key = ftok(".", QUEUE_KEY);
 
@@ -89,14 +104,6 @@ int main(int argc, char *argv[])
            "| list_alerts                            Lista todas as regras de alerta que existem no sistema                   |\n"
            "| exit                                   Exit the program                                                         |\n"
            " =================================================================================================================\n");
-
-    if (argc != 2)
-    {
-        printf("ERROR: Console identifier not provided!\n");
-        return 1;
-    }
-
-    console_identifier = atoi(argv[1]);
 
     // Create a new process to read the commands from the message queue
     if (fork() == 0)

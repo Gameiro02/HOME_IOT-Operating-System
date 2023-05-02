@@ -918,8 +918,6 @@ void ignore_all_signals()
         }
     }
 
-    printf("Todos os sinais, exceto SIGINT e SIGTSTP, serao ignorados.\n");
-
     return;
 }
 

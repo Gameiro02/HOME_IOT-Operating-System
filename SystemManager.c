@@ -22,11 +22,12 @@ pthread_cond_t internal_queue_cond = PTHREAD_COND_INITIALIZER;
 struct InternalQueueNode *internal_queue;
 
 bool check_alerts = true;
+bool debug = false;
 
 void worker(int worker_id, int read_pipe)
 {
     char *message = malloc(100);
-    sprintf(message, "WORKER %d CREATED", worker_id);
+    sprintf(message, "WORKER %d READY", worker_id);
     sem_wait(log_sem);
     write_log(message);
     sem_post(log_sem);
@@ -49,7 +50,8 @@ void worker(int worker_id, int read_pipe)
         // Imprime a mensagem
         if (read_bytes > 0)
         {
-            printf("Worker %d: %s \n", worker_id, buffer);
+            if (debug)
+                printf("Worker %d: %s \n", worker_id, buffer);
 
             sem_wait(mutex_shm);
             shm->workers_status[worker_id] = 1;
@@ -68,7 +70,7 @@ void worker(int worker_id, int read_pipe)
             if (!check_msg(buffer))
             {
                 bzero(buffer, BUFFER_SIZE);
-                printf("Worker %d: %s \n", worker_id, "INVALID MESSAGE");
+                printf("Worker %d: %s \n", worker_id, "WRONG COMMAND");
                 sem_wait(mutex_shm);
                 shm->workers_status[worker_id] = 0;
                 sem_post(mutex_shm);
@@ -364,7 +366,8 @@ void *dispatcher_routine(void *arg)
         }
         else
         {
-            printf("Mensagem enviada para o worker %d: %s\n", random_worker, msg);
+            if (debug)
+                printf("Mensagem enviada para o worker %d: %s\n", random_worker, msg);
         }
         bzero(msg, BUFFER_SIZE);
     }
