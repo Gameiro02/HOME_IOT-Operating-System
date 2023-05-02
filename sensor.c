@@ -31,7 +31,6 @@ void handle_sigint()
 void handle_sigtstp()
 {
     printf("Number of messages sent: %d\n", s1.num_messages);
-    sleep(s1.interval);
 }
 
 char *sensor_to_string(struct sensor *s)
