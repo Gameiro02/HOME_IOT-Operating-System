@@ -5,6 +5,29 @@
 int queue_id;
 int console_identifier;
 
+void process_reader()
+{
+    message buffer;
+    while (1)
+    {
+        // Esperar por uma mensagem da fila de mensagens
+        if (msgrcv(queue_id, &buffer, sizeof(buffer), console_identifier, 0) == -1)
+        {
+            perror("Erro ao ler da fila de mensagens");
+            exit(EXIT_FAILURE);
+        }
+
+        printf("%s\n", buffer.message);
+
+        // if we receive a message saying "terminate", we terminate the process
+        if (strcmp(buffer.message, "terminate") == 0)
+        {
+            printf("Terminating console...\n");
+            exit(EXIT_SUCCESS);
+        }
+    }
+}
+
 // Signal handler for SIGINT
 void handle_sigint()
 {
@@ -83,27 +106,17 @@ int main(int argc, char *argv[])
            "============================\n");
 
     // Create a new process to read the commands from the message queue
-    // if (fork() == 0)
-    // {
-    //     process_reader();
-    //     exit(EXIT_SUCCESS);
-    // }
+    if (fork() == 0)
+    {
+        process_reader();
+        exit(EXIT_SUCCESS);
+    }
     signal(SIGINT, handle_sigint);
     ignore_signals();
 
     while (1)
     {
-        message buffer;
         read_command(console_identifier);
-
-        // Esperar por uma mensagem da fila de mensagens
-        if (msgrcv(queue_id, &buffer, sizeof(buffer), console_identifier, 0) == -1)
-        {
-            perror("Erro ao ler da fila de mensagens");
-            exit(EXIT_FAILURE);
-        }
-
-        printf("%s\n", buffer.message);
     }
 
     return 0;
