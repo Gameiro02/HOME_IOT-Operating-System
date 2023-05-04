@@ -93,17 +93,17 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    printf(" ======================================================MENU=======================================================\n"
-           "| COMMAND                                DESCRIPTION                                                              |\n"
-           "|-----------------------------------------------------------------------------------------------------------------|\n"
-           "| stats                                  Apresenta estatísticas referentes aos dados enviados pelos sensores      |\n"
-           "| reset                                  Limpa todas as estatísticas calculadas até ao momento pelo sistema       |\n"
-           "| sensors                                Lista todos os sensors que enviaram dados ao sistema                     |\n"
-           "| add_alert [id] [chave] [min] [max]     Adiciona uma nova regra de alerta ao sistema                             |\n"
-           "| remove_alert [id]                      Remove uma regra de alerta do sistema                                    |\n"
-           "| list_alerts                            Lista todas as regras de alerta que existem no sistema                   |\n"
-           "| exit                                   Exit the program                                                         |\n"
-           " =================================================================================================================\n");
+    printf("=========== MENU ===========\n"
+           "| COMMAND             | DESCRIPTION                                       |\n"
+           "|-------------------- |---------------------------------------------------|\n"
+           "| stats               | Apresenta estatísticas dos sensores               |\n"
+           "| reset               | Limpa todas as estatísticas do sistema            |\n"
+           "| sensors             | Lista todos os sensores                           |\n"
+           "| add_alert [id] [ch] | Adiciona uma nova regra de alerta                 |\n"
+           "| remove_alert [id]   | Remove uma regra de alerta                        |\n"
+           "| list_alerts         | Lista todas as regras de alerta                   |\n"
+           "| exit                | Sai do programa                                    |\n"
+           "============================\n");
 
     // Create a new process to read the commands from the message queue
     if (fork() == 0)

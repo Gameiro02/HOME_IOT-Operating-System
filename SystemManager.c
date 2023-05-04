@@ -99,7 +99,9 @@ void worker(int worker_id, int read_pipe)
             struct InternalQueueNode aux = parse_params(buffer);
 
             // Add the message to the internal queue
+            sem_wait(mutex_shm);
             enqueue_key(&shm->key_list, aux.key, aux.value);
+            sem_post(mutex_shm);
 
             if (debug)
                 printf("Worker %d: %s \n", worker_id, "DONE1");
@@ -243,11 +245,9 @@ void alerts_watcher()
 
         // printf("Alerts Watcher: Checking alerts\n");
         char last_alert[BUFFER_SIZE] = "";
-        int last_value = -1;
 
         sem_wait(mutex_shm);
         struct key_list_node *key_node = &shm->key_list.data[shm->key_list.front];
-        struct key_list_node *last_key_node = &shm->key_list.data[shm->key_list.front];
         sem_post(mutex_shm);
 
         for (int i = 0; i <= shm->key_list.size; i++)
@@ -288,7 +288,6 @@ void alerts_watcher()
                                 printf("ALERT: Key %s last value %d is outside alert limits [%d, %d]\n",
                                        key_node->key, key_node->last_value, shm->alert_queue.data[i].min_value, shm->alert_queue.data[i].max_value);
                             strcpy(last_alert, key_node->key);
-                            last_value = key_node->last_value;
 
                             // Send alert message to console
                             message msg;
@@ -418,7 +417,7 @@ void *dispatcher_routine(void *arg)
                 char *command_aux = malloc(1024);
 
                 // put the command in the command_aux in UPPER CASE and dont put the user_console_id in the command_aux
-                for (int i = 0; i < strlen(node->command); i++)
+                for (int i = 0; i < (int)strlen(node->command); i++)
                 {
                     command_aux[i] = toupper(node->command[i]);
                 }
