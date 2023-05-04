@@ -11,13 +11,10 @@ sem_t *mutex_shm;
 sem_t *log_sem;
 sem_t *check_alert_sem;
 FILE *log_file;
-
 pthread_t console_reader, sensor_reader, dispatcher;
 int msg_queue_id;
-
 pthread_mutex_t internal_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t internal_queue_cond = PTHREAD_COND_INITIALIZER;
-// pthread_cond_t cond_alerts_watcher = PTHREAD_COND_INITIALIZER;
 
 struct InternalQueueNode *internal_queue;
 
