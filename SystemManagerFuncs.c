@@ -114,7 +114,7 @@ bool process_command_worker(const char *buffer, int worker_id, char *command_aux
         sprintf(command_aux, "ADD_ALERT %s (%s %d TO %d)", id, key, min, max);
 
         // add_alert AL1 HOUSETEMP 10 25
-        // add_alert AL1 ROOM1_TMP 11 24
+        // add_alert AL2 ROOM1_TMP 11 24
         // remove_alert AL1
         // add_alert AL3 ROOM2_TMP 11 26
 
@@ -323,7 +323,7 @@ bool enqueue(struct queue *q, struct alert_list_node data)
         // check if key already exists in queue
         for (int i = q->front; i <= q->rear; i++)
         {
-            if (strcmp(q->data[i].id, data.id) == 0 || strcmp(q->data[i].sensor_id, data.sensor_id) == 0)
+            if (strcmp(q->data[i].id, data.id) == 0 || strcmp(q->data[i].id, data.id) == 0)
             {
                 printf("Key already exists in queue!\n");
                 return false;
