@@ -323,7 +323,7 @@ bool enqueue(struct queue *q, struct alert_list_node data)
         // check if key already exists in queue
         for (int i = q->front; i <= q->rear; i++)
         {
-            if (strcmp(q->data[i].key, data.key) == 0)
+            if (strcmp(q->data[i].id, data.id) == 0 || strcmp(q->data[i].sensor_id, data.sensor_id) == 0)
             {
                 printf("Key already exists in queue!\n");
                 return false;
