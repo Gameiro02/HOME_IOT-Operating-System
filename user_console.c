@@ -102,15 +102,22 @@ int main(int argc, char *argv[])
            "| add_alert [id] [ch] | Adiciona uma nova regra de alerta                 |\n"
            "| remove_alert [id]   | Remove uma regra de alerta                        |\n"
            "| list_alerts         | Lista todas as regras de alerta                   |\n"
-           "| exit                | Sai do programa                                    |\n"
+           "| exit                | Sai do programa                                   |\n"
            "============================\n");
 
     // Create a new process to read the commands from the message queue
-    if (fork() == 0)
+    pid_t pid = fork();
+    if (pid == -1)
+    {
+        perror("Erro ao criar processo");
+        exit(EXIT_FAILURE);
+    }
+    else if (fork() == 0)
     {
         process_reader();
         exit(EXIT_SUCCESS);
     }
+
     signal(SIGINT, handle_sigint);
     ignore_signals();
 

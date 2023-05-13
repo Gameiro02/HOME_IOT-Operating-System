@@ -121,9 +121,9 @@ int main(int argc, char *argv[])
     }
 
     // Signal handlers
-    signal(SIGINT, handle_sigint);
-    signal(SIGTSTP, handle_sigtstp);
-    ignore_signals();
+    signal(SIGINT, handle_sigint);   // Apanhar o control + c
+    signal(SIGTSTP, handle_sigtstp); // Apanhar o control + z -> printa o numero de mensagens enviadas
+    ignore_signals();                // Ignorar os outros sinais que não sejam SIGINT e SIGTSTP
 
     // Create the String to Send
     char *str;

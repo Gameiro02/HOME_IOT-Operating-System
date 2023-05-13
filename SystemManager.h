@@ -53,6 +53,19 @@ typedef struct
     int max_alerts;
 } Config;
 
+typedef struct
+{
+    char sensor_id[BUFFER_SIZE];
+} sensors_list_node;
+
+typedef struct
+{
+    sensors_list_node data[QUEUE_SIZE];
+    int front;
+    int rear;
+    int size;
+} sensors_list_queue;
+
 struct alert_list_node
 {
     char id[BUFFER_SIZE];
@@ -113,6 +126,7 @@ typedef struct
 
     struct key_queue key_list;
     struct queue alert_queue;
+    sensors_list_queue sensors_list;
 
 } SharedMemory;
 
@@ -162,11 +176,13 @@ char *get_queue_list(struct queue *q);
 void init_key_queue(struct key_queue *q);
 int is_key_empty(struct key_queue *q);
 int is_key_full(struct key_queue *q);
-void enqueue_key(struct key_queue *q, char *key, int value);
+void enqueue_key(struct key_queue *q, char *key, int value, char *sensor_id);
 struct key_list_node dequeue_key(struct key_queue *q);
 bool reset_keys(struct key_queue *q);
 char *get_key_list(struct key_queue *q);
 char *get_key_names(struct key_queue *q);
+
+char *print_queue(sensors_list_queue *queue);
 
 void free_queues(struct InternalQueueNode *head);
 

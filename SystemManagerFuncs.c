@@ -75,7 +75,7 @@ bool process_command_worker(const char *buffer, int worker_id, char *command_aux
 
         strcpy(command_aux, "SENSORS");
         sem_wait(mutex_shm);
-        char *aux = get_key_names(&shm->key_list);
+        char *aux = print_queue(&shm->sensors_list);
 
         message msg;
         msg.type = console_id;
@@ -294,6 +294,22 @@ void create_named_pipes()
     }
 }
 
+int enqueue_sensor(sensors_list_queue *queue, char *sensor_id)
+{
+    // Verifica se a fila está cheia
+    if (queue->size == QUEUE_SIZE)
+    {
+        return 0; // Operação mal sucedida
+    }
+
+    // Adiciona o novo elemento no fim da fila
+    strcpy(queue->data[queue->rear].sensor_id, sensor_id);
+    queue->rear = (queue->rear + 1) % QUEUE_SIZE;
+    queue->size++;
+
+    return 1; // Operação bem sucedida
+}
+
 void init_queue(struct queue *q)
 {
     q->front = 0;
@@ -427,7 +443,7 @@ int is_key_full(struct key_queue *q)
     return (q->size == shm->config_file.max_keys);
 }
 
-void enqueue_key(struct key_queue *q, char *key, int value)
+void enqueue_key(struct key_queue *q, char *key, int value, char *sensor_id)
 {
     // Verifica se a chave já existe na fila
     struct key_list_node *curr = q->data + q->front;
@@ -447,6 +463,13 @@ void enqueue_key(struct key_queue *q, char *key, int value)
             curr->avg_value = (curr->avg_value * curr->num_updates + value) / (curr->num_updates + 1);
             curr->last_value = value;
             curr->num_updates++;
+
+            if (strcmp(curr->sensor_id, sensor_id) != 0)
+            {
+                // Add sensor_id to list
+                enqueue_sensor(&shm->sensors_list, sensor_id);
+            }
+
             return;
         }
         curr++;
@@ -466,12 +489,15 @@ void enqueue_key(struct key_queue *q, char *key, int value)
             q->front = shm->config_file.max_keys - 1;
         }
         strcpy(q->data[q->front].key, key);
+        strcpy(q->data[q->front].sensor_id, sensor_id);
         q->data[q->front].last_value = value;
         q->data[q->front].min_value = value;
         q->data[q->front].max_value = value;
         q->data[q->front].avg_value = value;
         q->data[q->front].num_updates = 1;
         q->size++;
+
+        enqueue_sensor(&shm->sensors_list, sensor_id);
     }
 }
 struct key_list_node dequeue_key(struct key_queue *q)
@@ -555,13 +581,14 @@ char *get_key_names(struct key_queue *q)
     struct key_list_node *curr = &q->data[q->front];
     for (int i = 0; i < q->size; i++)
     {
-        position += sprintf(key_names + position, "%s\n", curr->key);
+        position += sprintf(key_names + position, "%s\n", curr->sensor_id);
         curr++;
         if (curr == &q->data[shm->config_file.max_keys])
         {
             curr = q->data;
         }
     }
+    printf("Key names: %s\n", key_names);
     return key_names;
 }
 
@@ -919,21 +946,17 @@ void terminate()
     write_log("HOME_IOT SIMULATOR CLOSING");
     sem_post(log_sem);
 
-    shmctl(shmid, IPC_RMID, NULL);
+    shmctl(shmid, IPC_RMID, NULL); // Apagar a shm
 
     // unlink all the semaphores
     sem_unlink("mutex_shm");
     sem_unlink("log_sem");
-    sem_unlink("internal_queue_sem");
-    sem_unlink("worker_status_sem");
+    sem_unlink("check_alert_sem");
 
     // destroy all the semaphores
     sem_destroy(mutex_shm);
     sem_destroy(log_sem);
     sem_destroy(check_alert_sem);
-
-    // destroy the pthread_mutex_t
-    pthread_mutex_destroy(&internal_queue_mutex);
 
     // End the threads
     pthread_cancel(console_reader);
@@ -947,9 +970,9 @@ void terminate()
     // Remove a message queue at the end of the program
     msgctl(msg_queue_id, IPC_RMID, 0);
 
-    fclose(log_file);
+    fclose(log_file); // Fechar o ficheiro log
 
-    free_queues(internal_queue);
+    free_queues(internal_queue); // Liberta a memoria das queues
 
     // remove the condition variable
     pthread_cond_destroy(&internal_queue_cond);
@@ -969,6 +992,27 @@ void free_queues(struct InternalQueueNode *head)
         free(current);
         current = next;
     }
+}
+
+char *print_queue(sensors_list_queue *queue)
+{
+    char *sensors = malloc(BUFFER_SIZE * 3);
+    strcpy(sensors, "");
+    if (queue->size == 0)
+    {
+        sprintf(sensors, "A fila de sensores esta vazia.\n");
+        return sensors;
+    }
+
+    strcat(sensors, "ID:\n");
+    int i = queue->front;
+    for (int count = 0; count < queue->size; count++)
+    {
+        strcat(sensors, queue->data[i].sensor_id);
+        strcat(sensors, "\n");
+        i = (i + 1) % QUEUE_SIZE;
+    }
+    return sensors;
 }
 
 // ############################################################################################################

@@ -17,7 +17,6 @@ int msg_queue_id;
 
 pthread_mutex_t internal_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t internal_queue_cond = PTHREAD_COND_INITIALIZER;
-// pthread_cond_t cond_alerts_watcher = PTHREAD_COND_INITIALIZER;
 
 struct InternalQueueNode *internal_queue;
 
@@ -100,7 +99,7 @@ void worker(int worker_id, int read_pipe)
 
             // Add the message to the internal queue
             sem_wait(mutex_shm);
-            enqueue_key(&shm->key_list, aux.key, aux.value);
+            enqueue_key(&shm->key_list, aux.key, aux.value, aux.sensor_id);
             sem_post(mutex_shm);
 
             if (debug)
@@ -244,7 +243,9 @@ void alerts_watcher()
         sem_wait(check_alert_sem);
 
         // printf("Alerts Watcher: Checking alerts\n");
-        char last_alert[BUFFER_SIZE] = "";
+        char last_alert[BUFFER_SIZE];
+        strcpy(last_alert, "1234");
+        // int last_value = -4;
 
         sem_wait(mutex_shm);
         struct key_list_node *key_node = &shm->key_list.data[shm->key_list.front];
@@ -259,14 +260,6 @@ void alerts_watcher()
             // Save the first node
             struct alert_list_node first_node = shm->alert_queue.data[shm->alert_queue.front];
 
-            // If the node we are in is the first node, we break the loop
-            // if (strcmp(shm->alert_queue.data[i].key, key_node->key) == 0)
-            // {
-            //     printf("WE BREAKED\n");
-            //     sem_post(mutex_shm);
-            //     break;
-            // }
-
             sem_post(mutex_shm);
             // find corresponding alert in alert_queue
             while (i != last)
@@ -274,6 +267,10 @@ void alerts_watcher()
                 sem_wait(mutex_shm);
 
                 // printf("Alerts Watcher: Comparing %s with %s\n", shm->alert_queue.data[i].key, key_node->key);
+
+                // Print the the alert
+                printf("Alerts Watcher: Comparing %s with %s\n", shm->alert_queue.data[i].key, key_node->key);
+
                 if (strcmp(shm->alert_queue.data[i].key, key_node->key) == 0)
                 {
                     // check if last value is within alert limits
@@ -281,13 +278,17 @@ void alerts_watcher()
                         key_node->last_value > shm->alert_queue.data[i].max_value)
                     {
                         // check if the current alert is the same as the last alert printed
-                        if (strcmp(last_alert, key_node->key) != 0)
+                        printf("Comparing %s with %s\n", shm->alert_queue.data[i].id, last_alert);
+                        if (strcmp(last_alert, shm->alert_queue.data[i].id) != 0)
                         {
                             // print alert and update last_alert
                             if (debug)
                                 printf("ALERT: Key %s last value %d is outside alert limits [%d, %d]\n",
                                        key_node->key, key_node->last_value, shm->alert_queue.data[i].min_value, shm->alert_queue.data[i].max_value);
-                            strcpy(last_alert, key_node->key);
+
+                            strcpy(last_alert, shm->alert_queue.data[i].id);
+                            // printf("last alert: %s\n", last_alert);
+                            //  last_value = key_node->last_value;
 
                             // Send alert message to console
                             message msg;
@@ -389,6 +390,7 @@ void *dispatcher_routine(void *arg)
         {
             random_worker = rand() % num_workers;
         }
+
         sem_wait(mutex_shm);
         while (shm->workers_status[random_worker] != 0)
         {

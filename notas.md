@@ -40,3 +40,14 @@ adicionar a cena de remover threads ao termiate DONE
 
 
 Perguntar ao stor porque e que quando se printa o valor do sensor reader vem aquilo com caracteres a mais as vezes (???)
+
+
+
+
+
+-----------------------------------------------------------------------
+
+Seperar as chaves dos sensores
+ter uma lista so com chaves e uma lista so com os sensores
+
+No sensors alterar o print
