@@ -5,6 +5,8 @@
 int queue_id;
 int console_identifier;
 
+pid_t pids[2];
+
 void process_reader()
 {
     message buffer;
@@ -105,17 +107,20 @@ int main(int argc, char *argv[])
            "| exit                | Sai do programa                                   |\n"
            "============================\n");
 
-    // Create a new process to read the commands from the message queue
-    pid_t pid = fork();
-    if (pid == -1)
+    // Create a new process to read the commands from the message queue and give the process id to the variable pids[0] and the process id of the current process to the variable pids[1]
+    pids[0] = fork();
+    if (pids[0] == -1)
     {
         perror("Erro ao criar processo");
         exit(EXIT_FAILURE);
     }
-    else if (fork() == 0)
+    else if (pids[0] == 0)
     {
         process_reader();
-        exit(EXIT_SUCCESS);
+    }
+    else
+    {
+        pids[1] = getpid();
     }
 
     signal(SIGINT, handle_sigint);
@@ -125,6 +130,8 @@ int main(int argc, char *argv[])
     {
         read_command(console_identifier);
     }
+
+    wait(NULL);
 
     return 0;
 }

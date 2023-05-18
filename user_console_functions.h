@@ -21,6 +21,8 @@
 #define MIN_ID_LENGTH 3
 #define CONSOLE_PIPE "console_pipe"
 
+extern pid_t pids[2];
+
 void command_stats(int console_identifier);
 
 void command_reset(int console_identifier);

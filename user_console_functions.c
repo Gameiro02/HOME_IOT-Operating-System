@@ -48,6 +48,9 @@ void read_command(int console_identifier)
     }
     else if (strcmp(command, "exit") == 0)
     {
+        // Sigkill all processes
+        kill(pids[0], SIGKILL);
+        kill(pids[1], SIGKILL);
         exit(0);
     }
     else if (strncmp(command, "add_alert ", 10) == 0)

@@ -269,7 +269,7 @@ void alerts_watcher()
                 // printf("Alerts Watcher: Comparing %s with %s\n", shm->alert_queue.data[i].key, key_node->key);
 
                 // Print the the alert
-                printf("Alerts Watcher: Comparing %s with %s\n", shm->alert_queue.data[i].key, key_node->key);
+                // printf("Alerts Watcher: Comparing %s with %s\n", shm->alert_queue.data[i].key, key_node->key);
 
                 if (strcmp(shm->alert_queue.data[i].key, key_node->key) == 0)
                 {

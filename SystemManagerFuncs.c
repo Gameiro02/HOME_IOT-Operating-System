@@ -302,6 +302,15 @@ int enqueue_sensor(sensors_list_queue *queue, char *sensor_id)
         return 0; // Operação mal sucedida
     }
 
+    // Verifica se o elemento já está na fila
+    for (int i = 0; i < queue->size; i++)
+    {
+        if (strcmp(queue->data[i].sensor_id, sensor_id) == 0)
+        {
+            return 0; // Operação mal sucedida, elemento já existe na fila
+        }
+    }
+
     // Adiciona o novo elemento no fim da fila
     strcpy(queue->data[queue->rear].sensor_id, sensor_id);
     queue->rear = (queue->rear + 1) % QUEUE_SIZE;
@@ -536,6 +545,22 @@ bool reset_keys(struct key_queue *q)
         q->data[i].max_value = 0;
         q->data[i].avg_value = 0;
         q->data[i].num_updates = 0;
+    }
+
+    struct key_list_node *curr = &q->data[q->front];
+    for (int i = 0; i < q->size; i++)
+    {
+        q->data[i].last_value = 0;
+        q->data[i].min_value = 0;
+        q->data[i].max_value = 0;
+        q->data[i].avg_value = 0;
+        q->data[i].num_updates = 0;
+
+        curr++;
+        if (curr == &q->data[shm->config_file.max_keys])
+        {
+            curr = q->data;
+        }
     }
 
     return true;
